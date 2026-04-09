@@ -1,5 +1,17 @@
 import { supabase } from "@/integrations/supabase/client";
 
+/**
+ * Call Dolibarr API via the edge function proxy (server-side).
+ * Bypasses CORS and keeps the API key secure.
+ */
+async function dolibarrProxy(endpoint: string, method: string, payload?: any): Promise<any> {
+  const { data, error } = await supabase.functions.invoke("dolibarr-proxy", {
+    body: { endpoint, method, payload },
+  });
+  if (error) throw new Error(error.message || "Erreur proxy Dolibarr");
+  return data;
+}
+
 export interface DolibarrProduct {
   id: number;
   ref: string;
