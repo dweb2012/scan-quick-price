@@ -47,6 +47,20 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        topbar: {
+          DEFAULT: "hsl(var(--topbar))",
+          foreground: "hsl(var(--topbar-foreground))",
+        },
+        bottomnav: {
+          DEFAULT: "hsl(var(--bottomnav))",
+          foreground: "hsl(var(--bottomnav-foreground))",
+          active: "hsl(var(--bottomnav-active))",
+        },
+        "price-public": "hsl(var(--price-public))",
+        "price-remise": "hsl(var(--price-remise))",
+        "stock-ok": "hsl(var(--stock-ok))",
+        "stock-low": "hsl(var(--stock-low))",
+        "stock-out": "hsl(var(--stock-out))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
