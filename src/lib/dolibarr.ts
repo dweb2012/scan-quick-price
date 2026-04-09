@@ -18,21 +18,13 @@ export interface DolibarrProduct {
   imageUrl?: string;
 }
 
-/** Retourne le prix TTC, calculé depuis HT+TVA si price_ttc est vide */
-export function getPriceTTC(product: DolibarrProduct): number {
-  const ttc = parseFloat(product.price_ttc) || 0;
-  if (ttc > 0) return ttc;
-  const ht = parseFloat(product.price) || 0;
-  const tva = parseFloat(product.tva_tx) || 0;
-  return ht * (1 + tva / 100);
+/** Retourne le prix HT */
+export function getPriceHT(product: DolibarrProduct): number {
+  return parseFloat(product.price) || 0;
 }
 
-export function getPriceMinTTC(product: DolibarrProduct): number {
-  const ttc = parseFloat(product.price_min_ttc) || 0;
-  if (ttc > 0) return ttc;
-  const ht = parseFloat(product.price_min) || 0;
-  const tva = parseFloat(product.tva_tx) || 0;
-  return ht * (1 + tva / 100);
+export function getPriceMinHT(product: DolibarrProduct): number {
+  return parseFloat(product.price_min) || 0;
 }
 
 export interface DolibarrSettings {
@@ -146,17 +138,17 @@ export async function testConnection(): Promise<boolean> {
 }
 
 export function getDiscountedPrice(product: DolibarrProduct): { price: number; discount: number } | null {
-  const priceTtc = getPriceTTC(product);
-  const priceMinTtc = getPriceMinTTC(product);
+  const priceHt = getPriceHT(product);
+  const priceMinHt = getPriceMinHT(product);
 
-  if (priceMinTtc > 0 && priceMinTtc < priceTtc) {
-    const discount = ((priceTtc - priceMinTtc) / priceTtc) * 100;
-    return { price: priceMinTtc, discount: Math.round(discount) };
+  if (priceMinHt > 0 && priceMinHt < priceHt) {
+    const discount = ((priceHt - priceMinHt) / priceHt) * 100;
+    return { price: priceMinHt, discount: Math.round(discount) };
   }
 
   const discountPct = parseFloat(product.default_min_quantity_discount || "0");
   if (discountPct > 0) {
-    return { price: priceTtc * (1 - discountPct / 100), discount: Math.round(discountPct) };
+    return { price: priceHt * (1 - discountPct / 100), discount: Math.round(discountPct) };
   }
 
   return null;

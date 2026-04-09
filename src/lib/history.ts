@@ -1,4 +1,4 @@
-import { DolibarrProduct, getDiscountedPrice, getPriceTTC } from "./dolibarr";
+import { DolibarrProduct, getDiscountedPrice, getPriceHT } from "./dolibarr";
 
 export interface HistoryItem {
   id: number;
@@ -19,7 +19,7 @@ export function addToHistory(product: DolibarrProduct) {
     id: product.id,
     label: product.label,
     ref: product.ref,
-    prixPublic: getPriceTTC(product),
+    prixPublic: getPriceHT(product),
     prixRemise: discounted?.price ?? null,
     timestamp: new Date(),
   };

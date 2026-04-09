@@ -1,4 +1,4 @@
-import { DolibarrProduct, getDiscountedPrice, getPriceTTC } from "@/lib/dolibarr";
+import { DolibarrProduct, getDiscountedPrice, getPriceHT } from "@/lib/dolibarr";
 import { Button } from "@/components/ui/button";
 import { ScanLine, Package, Tag, Truck, MapPin } from "lucide-react";
 
@@ -30,7 +30,7 @@ const InfoRow = ({ icon: Icon, label, value }: { icon: any; label: string; value
 );
 
 const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
-  const priceTtc = getPriceTTC(product);
+  const priceHt = getPriceHT(product);
   const discounted = getDiscountedPrice(product);
 
   const opts = product.array_options || {};
@@ -75,17 +75,17 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
         {/* Prix Public */}
         <div className="bg-card rounded-xl p-4 shadow text-center border border-border">
           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
-            Prix Public
+            Prix HT
           </p>
           <p className="text-2xl font-extrabold text-price-public">
-            {formatPrice(priceTtc)}
+            {formatPrice(priceHt)}
           </p>
         </div>
 
         {/* Prix Remisé */}
         <div className="bg-accent/10 rounded-xl p-4 shadow text-center border border-accent/30 relative">
           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
-            Prix Remisé
+            Remisé HT
           </p>
           {discounted ? (
             <>
