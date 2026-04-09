@@ -10,21 +10,24 @@ const SettingsPanel = () => {
   const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [loadingSettings, setLoadingSettings] = useState(true);
 
   useEffect(() => {
-    const s = getSettings();
-    setBaseUrl(s.baseUrl);
-    setApiKey(s.apiKey);
+    getSettings().then((s) => {
+      setBaseUrl(s.baseUrl);
+      setApiKey(s.apiKey);
+      setLoadingSettings(false);
+    });
   }, []);
 
-  const handleSave = () => {
-    saveSettings({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() });
+  const handleSave = async () => {
+    await saveSettings({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() });
     toast.success("Paramètres enregistrés");
   };
 
   const handleTest = async () => {
     // Save first so test uses latest values
-    saveSettings({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() });
+    await saveSettings({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() });
     setTesting(true);
     try {
       await testConnection();
@@ -44,6 +47,14 @@ const SettingsPanel = () => {
       setTesting(false);
     }
   };
+
+  if (loadingSettings) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={32} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-6 space-y-5">
