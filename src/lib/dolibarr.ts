@@ -38,6 +38,7 @@ export interface SupplierDiscount {
   id: string;
   supplier_name: string;
   discount_percent: number;
+  socid: string;
 }
 
 // In-memory cache to avoid repeated DB reads during a session
@@ -86,12 +87,12 @@ export async function saveSettings(settings: DolibarrSettings): Promise<void> {
 export async function getSupplierDiscounts(): Promise<SupplierDiscount[]> {
   const { data } = await supabase
     .from("supplier_discounts")
-    .select("id, supplier_name, discount_percent")
+    .select("id, supplier_name, discount_percent, socid")
     .order("supplier_name");
   return (data as SupplierDiscount[]) || [];
 }
 
-export async function saveSupplierDiscount(name: string, percent: number): Promise<void> {
+export async function saveSupplierDiscount(name: string, percent: number, socid: string): Promise<void> {
   const { data: existing } = await supabase
     .from("supplier_discounts")
     .select("id")
@@ -101,12 +102,12 @@ export async function saveSupplierDiscount(name: string, percent: number): Promi
   if (existing) {
     await supabase
       .from("supplier_discounts")
-      .update({ discount_percent: percent })
+      .update({ discount_percent: percent, socid })
       .eq("id", existing.id);
   } else {
     await supabase
       .from("supplier_discounts")
-      .insert({ supplier_name: name, discount_percent: percent });
+      .insert({ supplier_name: name, discount_percent: percent, socid });
   }
 }
 
@@ -236,13 +237,18 @@ export async function testConnection(): Promise<boolean> {
  * Matches supplier name (case-insensitive) from the supplier_discounts table.
  */
 export async function getSupplierDiscountForProduct(product: DolibarrProduct): Promise<{ price: number; discount: number } | null> {
+  const opts = product.array_options || {};
+  const fournisseurId = opts.options_fournisseur || "";
   const supplierName = product.supplierName || "";
-  if (!supplierName) return null;
 
   const discounts = await getSupplierDiscounts();
-  const match = discounts.find(
-    (d) => d.supplier_name.toLowerCase() === supplierName.toLowerCase()
-  );
+
+  // Match by socid first (most reliable), then fallback to name
+  const match = discounts.find((d) => {
+    if (d.socid && fournisseurId && d.socid === fournisseurId) return true;
+    if (d.supplier_name && supplierName && d.supplier_name.toLowerCase() === supplierName.toLowerCase()) return true;
+    return false;
+  });
 
   if (!match || match.discount_percent <= 0) return null;
 
