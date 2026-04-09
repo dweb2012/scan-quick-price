@@ -1,4 +1,4 @@
-import { DolibarrProduct, getDiscountedPrice } from "@/lib/dolibarr";
+import { DolibarrProduct, getDiscountedPrice, getPriceTTC } from "@/lib/dolibarr";
 import { Button } from "@/components/ui/button";
 import { ScanLine, Package, Tag, Truck, MapPin } from "lucide-react";
 
@@ -30,7 +30,7 @@ const InfoRow = ({ icon: Icon, label, value }: { icon: any; label: string; value
 );
 
 const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
-  const priceTtc = parseFloat(product.price_ttc) || 0;
+  const priceTtc = getPriceTTC(product);
   const discounted = getDiscountedPrice(product);
 
   const opts = product.array_options || {};
