@@ -8,7 +8,10 @@ async function dolibarrProxy(endpoint: string, method: string, payload?: any): P
   const { data, error } = await supabase.functions.invoke("dolibarr-proxy", {
     body: { endpoint, method, payload },
   });
+
   if (error) throw new Error(error.message || "Erreur proxy Dolibarr");
+  if (data?.ok === false) throw new Error(data.error || "Erreur proxy Dolibarr");
+
   return data;
 }
 
@@ -333,19 +336,16 @@ export function getDiscountedPrice(_product: DolibarrProduct): { price: number; 
  * Uses LIKE filter on ref and label fields.
  */
 export async function autocompleteProducts(query: string): Promise<DolibarrProduct[]> {
-  if (!query || query.length < 2) return [];
+  const trimmedQuery = query.trim();
+  if (trimmedQuery.length < 2) return [];
 
-  // Search by ref (LIKE) — use proxy to avoid CORS/preview issues
-  const byRef = await dolibarrProxy(
-    `/api/index.php/products?sqlfilters=(ref:like:'%25${encodeURIComponent(query)}%25')&limit=8`,
-    "GET"
-  );
+  const buildSqlFilterUrl = (field: "ref" | "label") => {
+    const sqlFilter = `(${field}:like:'%${trimmedQuery}%')`;
+    return `/api/index.php/products?sqlfilters=${encodeURIComponent(sqlFilter)}&limit=8`;
+  };
 
-  // Search by label (LIKE)
-  const byLabel = await dolibarrProxy(
-    `/api/index.php/products?sqlfilters=(label:like:'%25${encodeURIComponent(query)}%25')&limit=8`,
-    "GET"
-  );
+  const byRef = await dolibarrProxy(buildSqlFilterUrl("ref"), "GET");
+  const byLabel = await dolibarrProxy(buildSqlFilterUrl("label"), "GET");
 
   const results: DolibarrProduct[] = [];
   const seen = new Set<number>();
