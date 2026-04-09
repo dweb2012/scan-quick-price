@@ -1,19 +1,19 @@
 import { useState, useCallback } from "react";
 import TopBar from "@/components/TopBar";
-import BottomNav from "@/components/BottomNav";
+import BottomNav, { type Tab } from "@/components/BottomNav";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import ProductCard from "@/components/ProductCard";
 import HistoryPanel from "@/components/HistoryPanel";
 import SettingsPanel from "@/components/SettingsPanel";
+import AdminUsersPanel from "@/components/AdminUsersPanel";
 import { searchProduct, DolibarrProduct, getSettings } from "@/lib/dolibarr";
 import { addToHistory } from "@/lib/history";
 import { cacheProduct, findCachedProduct } from "@/lib/productCache";
 import { useOnlineStatus } from "@/hooks/use-online-status";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import { toast } from "sonner";
 import { AlertTriangle, RefreshCw, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-type Tab = "scanner" | "history" | "settings";
 
 const Index = () => {
   const [tab, setTab] = useState<Tab>("scanner");
