@@ -79,13 +79,13 @@ async function dolibarrFetch(endpoint: string): Promise<any> {
 }
 
 export async function searchProduct(value: string): Promise<DolibarrProduct | null> {
-  // Try barcode first
+  // Try barcode first — verify exact match
   const byBarcode = await dolibarrFetch(
-    `/api/index.php/products?barcode=${encodeURIComponent(value)}&limit=1`
+    `/api/index.php/products?sqlfilters=(barcode:=:'${encodeURIComponent(value)}')&limit=1`
   );
   if (Array.isArray(byBarcode) && byBarcode.length > 0) return byBarcode[0];
 
-  // Try reference
+  // Try reference — exact match
   const byRef = await dolibarrFetch(
     `/api/index.php/products?sqlfilters=(ref:=:'${encodeURIComponent(value)}')&limit=1`
   );
