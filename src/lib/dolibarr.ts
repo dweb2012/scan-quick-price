@@ -333,14 +333,16 @@ export function getDiscountedPrice(_product: DolibarrProduct): { price: number; 
 export async function autocompleteProducts(query: string): Promise<DolibarrProduct[]> {
   if (!query || query.length < 2) return [];
 
-  // Search by ref (LIKE)
-  const byRef = await dolibarrFetch(
-    `/api/index.php/products?sqlfilters=(ref:like:'%25${encodeURIComponent(query)}%25')&limit=8`
+  // Search by ref (LIKE) — use proxy to avoid CORS/preview issues
+  const byRef = await dolibarrProxy(
+    `/api/index.php/products?sqlfilters=(ref:like:'%25${encodeURIComponent(query)}%25')&limit=8`,
+    "GET"
   );
 
   // Search by label (LIKE)
-  const byLabel = await dolibarrFetch(
-    `/api/index.php/products?sqlfilters=(label:like:'%25${encodeURIComponent(query)}%25')&limit=8`
+  const byLabel = await dolibarrProxy(
+    `/api/index.php/products?sqlfilters=(label:like:'%25${encodeURIComponent(query)}%25')&limit=8`,
+    "GET"
   );
 
   const results: DolibarrProduct[] = [];
