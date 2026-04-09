@@ -23,7 +23,7 @@ const Index = () => {
   const [lastCode, setLastCode] = useState<string>("");
   const [fromCache, setFromCache] = useState(false);
   const online = useOnlineStatus();
-
+  const { isAdmin } = useIsAdmin();
   const handleScan = useCallback(async (code: string) => {
     setLastCode(code);
     setProduct(null);
@@ -83,6 +83,7 @@ const Index = () => {
   const renderContent = () => {
     if (tab === "history") return <HistoryPanel />;
     if (tab === "settings") return <SettingsPanel />;
+    if (tab === "admin") return <AdminUsersPanel />;
 
     if (product) {
       return (
@@ -125,7 +126,7 @@ const Index = () => {
     <div className="flex flex-col h-[100dvh] bg-background overflow-hidden">
       <TopBar online={online} />
       <main className="flex-1 flex flex-col overflow-hidden">{renderContent()}</main>
-      <BottomNav active={tab} onChange={setTab} />
+      <BottomNav active={tab} onChange={setTab} showAdmin={isAdmin} />
     </div>
   );
 };
