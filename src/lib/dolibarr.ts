@@ -5,15 +5,34 @@ export interface DolibarrProduct {
   ref: string;
   label: string;
   barcode: string;
+  price: string;
   price_ttc: string;
+  price_min: string;
   price_min_ttc: string;
+  tva_tx: string;
   stock_reel: number;
   image?: string;
   photo?: string;
   default_min_quantity_discount?: string;
   array_options?: Record<string, string>;
-  // Resolved image URL
   imageUrl?: string;
+}
+
+/** Retourne le prix TTC, calculé depuis HT+TVA si price_ttc est vide */
+export function getPriceTTC(product: DolibarrProduct): number {
+  const ttc = parseFloat(product.price_ttc) || 0;
+  if (ttc > 0) return ttc;
+  const ht = parseFloat(product.price) || 0;
+  const tva = parseFloat(product.tva_tx) || 0;
+  return ht * (1 + tva / 100);
+}
+
+export function getPriceMinTTC(product: DolibarrProduct): number {
+  const ttc = parseFloat(product.price_min_ttc) || 0;
+  if (ttc > 0) return ttc;
+  const ht = parseFloat(product.price_min) || 0;
+  const tva = parseFloat(product.tva_tx) || 0;
+  return ht * (1 + tva / 100);
 }
 
 export interface DolibarrSettings {
@@ -127,8 +146,8 @@ export async function testConnection(): Promise<boolean> {
 }
 
 export function getDiscountedPrice(product: DolibarrProduct): { price: number; discount: number } | null {
-  const priceTtc = parseFloat(product.price_ttc) || 0;
-  const priceMinTtc = parseFloat(product.price_min_ttc) || 0;
+  const priceTtc = getPriceTTC(product);
+  const priceMinTtc = getPriceMinTTC(product);
 
   if (priceMinTtc > 0 && priceMinTtc < priceTtc) {
     const discount = ((priceTtc - priceMinTtc) / priceTtc) * 100;
