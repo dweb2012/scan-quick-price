@@ -1,6 +1,7 @@
-import { DolibarrProduct, getDiscountedPrice, getPriceHT } from "@/lib/dolibarr";
+import { useState, useEffect } from "react";
+import { DolibarrProduct, getDiscountedPrice, getPriceHT, getPriceMinHT, fetchProductImageBlob } from "@/lib/dolibarr";
 import { Button } from "@/components/ui/button";
-import { ScanLine, Package, Tag, Truck, MapPin } from "lucide-react";
+import { ScanLine, Package, Tag, Truck, MapPin, Loader2, RotateCcw } from "lucide-react";
 
 interface ProductCardProps {
   product: DolibarrProduct;
@@ -29,31 +30,83 @@ const InfoRow = ({ icon: Icon, label, value }: { icon: any; label: string; value
   </div>
 );
 
+const ProductImage = ({ product }: { product: DolibarrProduct }) => {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const loadImage = async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const url = await fetchProductImageBlob(product);
+      if (url) {
+        setImageUrl(url);
+      } else {
+        setError(true);
+      }
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadImage();
+  }, [product.id]);
+
+  // Cleanup blob URLs
+  useEffect(() => {
+    return () => {
+      if (imageUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(imageUrl);
+      }
+    };
+  }, [imageUrl]);
+
+  if (loading) {
+    return (
+      <div className="w-40 h-40 rounded-xl bg-card shadow flex items-center justify-center">
+        <Loader2 className="text-muted-foreground animate-spin" size={32} />
+      </div>
+    );
+  }
+
+  if (error || !imageUrl) {
+    return (
+      <div className="w-40 h-40 rounded-xl bg-card shadow flex flex-col items-center justify-center gap-2">
+        <Package className="text-muted-foreground" size={48} />
+        <Button variant="ghost" size="sm" onClick={loadImage} className="text-xs gap-1">
+          <RotateCcw size={12} /> Réessayer
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={imageUrl}
+      alt={product.label}
+      className="w-40 h-40 object-contain rounded-xl bg-card shadow"
+      onError={() => setError(true)}
+    />
+  );
+};
+
 const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const priceHt = getPriceHT(product);
   const discounted = getDiscountedPrice(product);
 
   const opts = product.array_options || {};
   const marque = opts.options_marque || "";
-  const fournisseur = opts.options_fournisseur || "";
+  const fournisseur = product.supplierName || opts.options_fournisseur || "";
   const emplacement = opts.options_emplacement || "";
-
-  const imgSrc = product.imageUrl || product.image;
 
   return (
     <div className="flex flex-col items-center flex-1 px-4 py-6 gap-5 overflow-y-auto">
       {/* Product image */}
-      {imgSrc ? (
-        <img
-          src={imgSrc}
-          alt={product.label}
-          className="w-40 h-40 object-contain rounded-xl bg-card shadow"
-        />
-      ) : (
-        <div className="w-40 h-40 rounded-xl bg-card shadow flex items-center justify-center">
-          <Package className="text-muted-foreground" size={56} />
-        </div>
-      )}
+      <ProductImage product={product} />
 
       {/* Name & ref */}
       <div className="text-center">
@@ -72,7 +125,7 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
 
       {/* Price blocks */}
       <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
-        {/* Prix Public */}
+        {/* Prix HT */}
         <div className="bg-card rounded-xl p-4 shadow text-center border border-border">
           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
             Prix HT
@@ -82,7 +135,7 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
           </p>
         </div>
 
-        {/* Prix Remisé */}
+        {/* Prix Remisé HT */}
         <div className="bg-accent/10 rounded-xl p-4 shadow text-center border border-accent/30 relative">
           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
             Remisé HT
@@ -95,6 +148,9 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
               <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-xs font-bold px-2 py-0.5 rounded-full">
                 -{discounted.discount}%
               </span>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                (prix min: {formatPrice(getPriceMinHT(product))})
+              </p>
             </>
           ) : (
             <p className="text-lg text-muted-foreground">—</p>
