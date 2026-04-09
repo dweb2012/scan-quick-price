@@ -109,7 +109,7 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
   return (
     <div className="flex flex-col items-center justify-center flex-1 px-4 py-6 gap-6">
       {/* Scanner viewport */}
-      <div className="relative w-full max-w-sm aspect-square rounded-2xl overflow-hidden bg-foreground/5 border-2 border-dashed border-primary/30">
+      <div className="relative w-full max-w-sm aspect-[16/9] rounded-2xl overflow-hidden bg-foreground/5 border-2 border-dashed border-primary/30">
         <div id={containerRef.current} className="w-full h-full" />
         {!scanning && !cameraError && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
