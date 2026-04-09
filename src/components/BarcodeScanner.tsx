@@ -108,28 +108,30 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
 
   return (
     <div className="flex flex-col items-center justify-center flex-1 px-4 py-6 gap-6">
-      {/* Scanner viewport */}
-      <div className="relative w-full max-w-sm aspect-[16/9] rounded-2xl overflow-hidden bg-foreground/5 border-2 border-dashed border-primary/30">
-        <div id={containerRef.current} className="w-full h-full" />
-        {!scanning && !cameraError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
-            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
-              <Camera className="text-primary" size={40} />
+      {/* Scanner viewport — hidden in manual mode */}
+      {!manualMode && (
+        <div className="relative w-full max-w-sm aspect-[16/9] rounded-2xl overflow-hidden bg-foreground/5 border-2 border-dashed border-primary/30">
+          <div id={containerRef.current} className="w-full h-full" />
+          {!scanning && !cameraError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                <Camera className="text-primary" size={32} />
+              </div>
+              <p className="text-muted-foreground text-sm text-center px-4">
+                Appuyez sur le bouton pour scanner un code-barres
+              </p>
             </div>
-            <p className="text-muted-foreground text-sm text-center px-4">
-              Appuyez sur le bouton pour scanner un code-barres
-            </p>
-          </div>
-        )}
-        {scanning && (
-          <button
-            onClick={stopScanner}
-            className="absolute top-3 right-3 bg-foreground/70 text-background rounded-full p-2 touch-target"
-          >
-            <X size={20} />
-          </button>
-        )}
-      </div>
+          )}
+          {scanning && (
+            <button
+              onClick={stopScanner}
+              className="absolute top-3 right-3 bg-foreground/70 text-background rounded-full p-2 touch-target"
+            >
+              <X size={20} />
+            </button>
+          )}
+        </div>
+      )}
 
       {cameraError && (
         <div className="bg-destructive/10 text-destructive rounded-xl p-4 text-sm text-center w-full max-w-sm">
