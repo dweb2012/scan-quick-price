@@ -16,6 +16,8 @@ export interface DolibarrProduct {
   default_min_quantity_discount?: string;
   array_options?: Record<string, string>;
   imageUrl?: string;
+  /** Resolved supplier name (filled after fetch) */
+  supplierName?: string;
 }
 
 /** Retourne le prix HT */
@@ -53,7 +55,6 @@ export async function getSettings(): Promise<DolibarrSettings> {
 }
 
 export async function saveSettings(settings: DolibarrSettings): Promise<void> {
-  // Check if a row already exists
   const { data: existing } = await supabase
     .from("connection_settings")
     .select("id")
@@ -71,7 +72,6 @@ export async function saveSettings(settings: DolibarrSettings): Promise<void> {
       .insert({ base_url: settings.baseUrl, api_key: settings.apiKey });
   }
 
-  // Update cache
   cachedSettings = { ...settings };
 }
 
@@ -92,22 +92,75 @@ async function dolibarrFetch(endpoint: string): Promise<any> {
   return res.json();
 }
 
-async function resolveProductImage(product: DolibarrProduct): Promise<string | undefined> {
+/**
+ * Fetch product image as a Blob via Dolibarr documents API (authenticated).
+ * Returns an object URL or undefined.
+ */
+export async function fetchProductImageBlob(product: DolibarrProduct): Promise<string | undefined> {
   try {
-    const { baseUrl } = await getSettings();
+    // If image field is already an HTTP URL, use it directly
+    if (product.image?.startsWith("http")) {
+      return product.image;
+    }
+
+    const { baseUrl, apiKey } = await getSettings();
+    if (!baseUrl || !apiKey) return undefined;
+
+    // Get document list for this product
     const docs = await dolibarrFetch(
       `/api/index.php/documents?modulepart=produit&id=${product.id}`
     );
-    if (Array.isArray(docs) && docs.length > 0) {
-      const img = docs.find((d: any) => /\.(jpe?g|png|gif|webp)$/i.test(d.name));
-      if (img) {
-        return `${baseUrl.replace(/\/+$/, "")}/documents/produit/${product.ref}/${img.name}`;
+
+    if (!Array.isArray(docs) || docs.length === 0) return undefined;
+
+    const img = docs.find((d: any) => /\.(jpe?g|png|gif|webp)$/i.test(d.name));
+    if (!img) return undefined;
+
+    // Download the file via the documents download endpoint
+    const downloadUrl = `${baseUrl.replace(/\/+$/, "")}/api/index.php/documents/download?modulepart=produit&original_file=${encodeURIComponent(product.ref + "/" + img.name)}`;
+
+    const res = await fetch(downloadUrl, {
+      headers: { DOLAPIKEY: apiKey, Accept: "application/json" },
+    });
+
+    if (!res.ok) return undefined;
+
+    const json = await res.json();
+
+    // Dolibarr returns { filename, content (base64), content-type, ... }
+    if (json?.content) {
+      const contentType = json["content-type"] || json.contenttype || "image/jpeg";
+      const binary = atob(json.content);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: contentType });
+      if (blob.size > 0) {
+        return URL.createObjectURL(blob);
       }
     }
-  } catch {
-    // Ignore image fetch errors
+
+    // Fallback: direct URL with auth (may not work with CORS)
+    const directUrl = `${baseUrl.replace(/\/+$/, "")}/documents/produit/${product.ref}/${img.name}`;
+    return directUrl;
+  } catch (e) {
+    console.error("Erreur chargement image produit:", e);
+    return undefined;
   }
-  return undefined;
+}
+
+/**
+ * Resolve supplier name from its ID via Dolibarr thirdparties API.
+ */
+async function resolveSupplierName(supplierId: string): Promise<string> {
+  if (!supplierId || supplierId === "0") return "";
+  try {
+    const data = await dolibarrFetch(`/api/index.php/thirdparties/${supplierId}`);
+    return data?.name || data?.nom || supplierId;
+  } catch {
+    return supplierId; // Fallback to ID if fetch fails
+  }
 }
 
 export async function searchProduct(value: string): Promise<DolibarrProduct | null> {
@@ -116,8 +169,9 @@ export async function searchProduct(value: string): Promise<DolibarrProduct | nu
     `/api/index.php/products?sqlfilters=(barcode:=:'${encodeURIComponent(value)}')&limit=1`
   );
   if (Array.isArray(byBarcode) && byBarcode.length > 0) {
-    byBarcode[0].imageUrl = await resolveProductImage(byBarcode[0]);
-    return byBarcode[0];
+    const p = byBarcode[0];
+    await enrichProduct(p);
+    return p;
   }
 
   // Try reference — exact match
@@ -125,11 +179,21 @@ export async function searchProduct(value: string): Promise<DolibarrProduct | nu
     `/api/index.php/products?sqlfilters=(ref:=:'${encodeURIComponent(value)}')&limit=1`
   );
   if (Array.isArray(byRef) && byRef.length > 0) {
-    byRef[0].imageUrl = await resolveProductImage(byRef[0]);
-    return byRef[0];
+    const p = byRef[0];
+    await enrichProduct(p);
+    return p;
   }
 
   return null;
+}
+
+/** Enrich product with supplier name */
+async function enrichProduct(product: DolibarrProduct): Promise<void> {
+  const opts = product.array_options || {};
+  const fournisseurId = opts.options_fournisseur || "";
+  if (fournisseurId) {
+    product.supplierName = await resolveSupplierName(fournisseurId);
+  }
 }
 
 export async function testConnection(): Promise<boolean> {
@@ -141,6 +205,7 @@ export function getDiscountedPrice(product: DolibarrProduct): { price: number; d
   const priceHt = getPriceHT(product);
   const priceMinHt = getPriceMinHT(product);
 
+  // Only use price_min if it's explicitly set and lower
   if (priceMinHt > 0 && priceMinHt < priceHt) {
     const discount = ((priceHt - priceMinHt) / priceHt) * 100;
     return { price: priceMinHt, discount: Math.round(discount) };
