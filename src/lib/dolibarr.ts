@@ -259,16 +259,18 @@ async function resolveSupplierName(supplierId: string): Promise<string> {
 }
 
 export async function searchProduct(value: string): Promise<DolibarrProduct | null> {
-  const byBarcode = await dolibarrFetch(
-    `/api/index.php/products?sqlfilters=(barcode:=:'${encodeURIComponent(value)}')&limit=1`
+  const byBarcode = await dolibarrProxy(
+    `/api/index.php/products?sqlfilters=(barcode:=:'${encodeURIComponent(value)}')&limit=1`,
+    "GET"
   );
   if (Array.isArray(byBarcode) && byBarcode.length > 0) {
     await enrichProduct(byBarcode[0]);
     return byBarcode[0];
   }
 
-  const byRef = await dolibarrFetch(
-    `/api/index.php/products?sqlfilters=(ref:=:'${encodeURIComponent(value)}')&limit=1`
+  const byRef = await dolibarrProxy(
+    `/api/index.php/products?sqlfilters=(ref:=:'${encodeURIComponent(value)}')&limit=1`,
+    "GET"
   );
   if (Array.isArray(byRef) && byRef.length > 0) {
     await enrichProduct(byRef[0]);
@@ -333,14 +335,16 @@ export function getDiscountedPrice(_product: DolibarrProduct): { price: number; 
 export async function autocompleteProducts(query: string): Promise<DolibarrProduct[]> {
   if (!query || query.length < 2) return [];
 
-  // Search by ref (LIKE)
-  const byRef = await dolibarrFetch(
-    `/api/index.php/products?sqlfilters=(ref:like:'%25${encodeURIComponent(query)}%25')&limit=8`
+  // Search by ref (LIKE) — use proxy to avoid CORS/preview issues
+  const byRef = await dolibarrProxy(
+    `/api/index.php/products?sqlfilters=(ref:like:'%25${encodeURIComponent(query)}%25')&limit=8`,
+    "GET"
   );
 
   // Search by label (LIKE)
-  const byLabel = await dolibarrFetch(
-    `/api/index.php/products?sqlfilters=(label:like:'%25${encodeURIComponent(query)}%25')&limit=8`
+  const byLabel = await dolibarrProxy(
+    `/api/index.php/products?sqlfilters=(label:like:'%25${encodeURIComponent(query)}%25')&limit=8`,
+    "GET"
   );
 
   const results: DolibarrProduct[] = [];
