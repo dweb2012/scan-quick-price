@@ -8,7 +8,10 @@ async function dolibarrProxy(endpoint: string, method: string, payload?: any): P
   const { data, error } = await supabase.functions.invoke("dolibarr-proxy", {
     body: { endpoint, method, payload },
   });
+
   if (error) throw new Error(error.message || "Erreur proxy Dolibarr");
+  if (data?.ok === false) throw new Error(data.error || "Erreur proxy Dolibarr");
+
   return data;
 }
 
