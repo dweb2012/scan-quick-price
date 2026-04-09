@@ -1,6 +1,6 @@
 import { DolibarrProduct, getDiscountedPrice } from "@/lib/dolibarr";
 import { Button } from "@/components/ui/button";
-import { ScanLine, Package } from "lucide-react";
+import { ScanLine, Package, Tag, Truck, MapPin } from "lucide-react";
 
 interface ProductCardProps {
   product: DolibarrProduct;
@@ -21,16 +21,31 @@ const StockBadge = ({ stock }: { stock: number }) => {
   );
 };
 
+const InfoRow = ({ icon: Icon, label, value }: { icon: any; label: string; value: string }) => (
+  <div className="flex items-center gap-2 text-sm">
+    <Icon size={16} className="text-muted-foreground shrink-0" />
+    <span className="text-muted-foreground">{label} :</span>
+    <span className="font-medium truncate">{value}</span>
+  </div>
+);
+
 const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const priceTtc = parseFloat(product.price_ttc) || 0;
   const discounted = getDiscountedPrice(product);
 
+  const opts = product.array_options || {};
+  const marque = opts.options_marque || "";
+  const fournisseur = opts.options_fournisseur || "";
+  const emplacement = opts.options_emplacement || "";
+
+  const imgSrc = product.imageUrl || product.image;
+
   return (
     <div className="flex flex-col items-center flex-1 px-4 py-6 gap-5 overflow-y-auto">
       {/* Product image */}
-      {product.image ? (
+      {imgSrc ? (
         <img
-          src={product.image}
+          src={imgSrc}
           alt={product.label}
           className="w-40 h-40 object-contain rounded-xl bg-card shadow"
         />
@@ -45,6 +60,15 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
         <h2 className="text-xl font-bold leading-tight">{product.label}</h2>
         <p className="text-sm text-muted-foreground mt-1">Réf: {product.ref}</p>
       </div>
+
+      {/* Extra info: marque, fournisseur, emplacement */}
+      {(marque || fournisseur || emplacement) && (
+        <div className="w-full max-w-sm bg-card rounded-xl p-3 shadow border border-border space-y-2">
+          {marque && <InfoRow icon={Tag} label="Marque" value={marque} />}
+          {fournisseur && <InfoRow icon={Truck} label="Fournisseur" value={fournisseur} />}
+          {emplacement && <InfoRow icon={MapPin} label="Emplacement" value={emplacement} />}
+        </div>
+      )}
 
       {/* Price blocks */}
       <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
