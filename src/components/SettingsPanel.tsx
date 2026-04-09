@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { getSettings, saveSettings, testConnection, getSupplierDiscounts, saveSupplierDiscount, deleteSupplierDiscount, SupplierDiscount } from "@/lib/dolibarr";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Plus, Trash2 } from "lucide-react";
+import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Plus, Trash2, LogOut } from "lucide-react";
 import { toast } from "sonner";
 
 const SettingsPanel = () => {
@@ -211,6 +212,18 @@ const SettingsPanel = () => {
           Access-Control-Allow-Headers: DOLAPIKEY, Content-Type
         </code>
       </div>
+
+      <Button
+        variant="outline"
+        onClick={async () => {
+          await supabase.auth.signOut();
+          toast.success("Déconnecté");
+        }}
+        className="w-full mt-6 touch-target gap-2 text-destructive border-destructive/30"
+      >
+        <LogOut size={16} />
+        Se déconnecter
+      </Button>
     </div>
   );
 };
