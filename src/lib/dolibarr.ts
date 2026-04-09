@@ -165,18 +165,12 @@ export async function updateProductStock(
   warehouseId: number,
   label = "Mise à jour depuis CHR Elite Scan"
 ): Promise<void> {
-  await dolibarrFetch(
-    `/api/index.php/stockmovements`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        product_id: productId,
-        warehouse_id: warehouseId,
-        qty,
-        label,
-      }),
-    }
-  );
+  await dolibarrProxy(`/api/index.php/stockmovements`, "POST", {
+    product_id: productId,
+    warehouse_id: warehouseId,
+    qty,
+    label,
+  });
 }
 
 /**
@@ -186,13 +180,9 @@ export async function updateProductExtrafields(
   productId: number,
   extrafields: Record<string, string>
 ): Promise<void> {
-  await dolibarrFetch(
-    `/api/index.php/products/${productId}`,
-    {
-      method: "PUT",
-      body: JSON.stringify({ array_options: extrafields }),
-    }
-  );
+  await dolibarrProxy(`/api/index.php/products/${productId}`, "PUT", {
+    array_options: extrafields,
+  });
 }
 
 /**
