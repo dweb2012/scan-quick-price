@@ -1,0 +1,1 @@
+ALTER TABLE public.supplier_discounts ADD COLUMN socid text DEFAULT '' NOT NULL;

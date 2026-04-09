@@ -43,6 +43,7 @@ export type Database = {
           created_at: string
           discount_percent: number
           id: string
+          socid: string
           supplier_name: string
           updated_at: string
         }
@@ -50,6 +51,7 @@ export type Database = {
           created_at?: string
           discount_percent?: number
           id?: string
+          socid?: string
           supplier_name: string
           updated_at?: string
         }
@@ -57,6 +59,7 @@ export type Database = {
           created_at?: string
           discount_percent?: number
           id?: string
+          socid?: string
           supplier_name?: string
           updated_at?: string
         }

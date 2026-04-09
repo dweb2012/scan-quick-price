@@ -16,6 +16,7 @@ const SettingsPanel = () => {
   const [discounts, setDiscounts] = useState<SupplierDiscount[]>([]);
   const [newName, setNewName] = useState("");
   const [newPercent, setNewPercent] = useState("");
+  const [newSocid, setNewSocid] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -59,13 +60,15 @@ const SettingsPanel = () => {
   const handleAddDiscount = async () => {
     const name = newName.trim();
     const percent = parseFloat(newPercent);
+    const socid = newSocid.trim();
     if (!name || isNaN(percent) || percent <= 0) {
       toast.error("Nom et pourcentage requis");
       return;
     }
-    await saveSupplierDiscount(name, percent);
+    await saveSupplierDiscount(name, percent, socid);
     setNewName("");
     setNewPercent("");
+    setNewSocid("");
     await loadDiscounts();
     toast.success(`Remise ${name} : ${percent}% enregistrée`);
   };
@@ -149,7 +152,10 @@ const SettingsPanel = () => {
           <div className="space-y-2">
             {discounts.map((d) => (
               <div key={d.id} className="flex items-center gap-2 bg-card rounded-lg p-3 border border-border">
-                <span className="flex-1 font-medium text-sm">{d.supplier_name}</span>
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-sm block">{d.supplier_name}</span>
+                  {d.socid && <span className="text-[11px] text-muted-foreground">ID: {d.socid}</span>}
+                </div>
                 <span className="text-sm font-bold text-accent">-{d.discount_percent}%</span>
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteDiscount(d)}>
                   <Trash2 size={14} className="text-destructive" />
@@ -159,27 +165,37 @@ const SettingsPanel = () => {
           </div>
         )}
 
-        <div className="flex gap-2 items-end">
-          <div className="flex-1">
-            <Input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Nom fournisseur"
-              className="touch-target text-sm"
-            />
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <Input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Nom fournisseur"
+                className="touch-target text-sm"
+              />
+            </div>
+            <div className="w-24">
+              <Input
+                value={newSocid}
+                onChange={(e) => setNewSocid(e.target.value)}
+                placeholder="SocID"
+                className="touch-target text-sm"
+              />
+            </div>
+            <div className="w-20">
+              <Input
+                value={newPercent}
+                onChange={(e) => setNewPercent(e.target.value)}
+                placeholder="%"
+                type="number"
+                className="touch-target text-sm"
+              />
+            </div>
+            <Button size="icon" className="touch-target h-10 w-10" onClick={handleAddDiscount}>
+              <Plus size={18} />
+            </Button>
           </div>
-          <div className="w-20">
-            <Input
-              value={newPercent}
-              onChange={(e) => setNewPercent(e.target.value)}
-              placeholder="%"
-              type="number"
-              className="touch-target text-sm"
-            />
-          </div>
-          <Button size="icon" className="touch-target h-10 w-10" onClick={handleAddDiscount}>
-            <Plus size={18} />
-          </Button>
         </div>
       </div>
 
