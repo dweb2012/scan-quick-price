@@ -54,7 +54,7 @@ export async function searchProduct(value: string): Promise<DolibarrProduct | nu
 
   // Try reference
   const byRef = await dolibarrFetch(
-    `/api/index.php/products?sqlfilters=(ref:like:'${encodeURIComponent(value)}')&limit=1`
+    `/api/index.php/products?sqlfilters=(ref:=:'${encodeURIComponent(value)}')&limit=1`
   );
   if (Array.isArray(byRef) && byRef.length > 0) return byRef[0];
 
