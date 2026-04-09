@@ -21,7 +21,7 @@ const Index = () => {
   const [lastCode, setLastCode] = useState<string>("");
 
   const handleScan = useCallback(async (code: string) => {
-    const { baseUrl, apiKey } = getSettings();
+    const { baseUrl, apiKey } = await getSettings();
     if (!baseUrl || !apiKey) {
       toast.error("Configurez d'abord l'URL et la clé API dans les paramètres.");
       setTab("settings");
