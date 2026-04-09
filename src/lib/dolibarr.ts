@@ -11,6 +11,9 @@ export interface DolibarrProduct {
   image?: string;
   photo?: string;
   default_min_quantity_discount?: string;
+  array_options?: Record<string, string>;
+  // Resolved image URL
+  imageUrl?: string;
 }
 
 export interface DolibarrSettings {
@@ -78,18 +81,42 @@ async function dolibarrFetch(endpoint: string): Promise<any> {
   return res.json();
 }
 
+async function resolveProductImage(product: DolibarrProduct): Promise<string | undefined> {
+  try {
+    const { baseUrl } = await getSettings();
+    const docs = await dolibarrFetch(
+      `/api/index.php/documents?modulepart=produit&id=${product.id}`
+    );
+    if (Array.isArray(docs) && docs.length > 0) {
+      const img = docs.find((d: any) => /\.(jpe?g|png|gif|webp)$/i.test(d.name));
+      if (img) {
+        return `${baseUrl.replace(/\/+$/, "")}/documents/produit/${product.ref}/${img.name}`;
+      }
+    }
+  } catch {
+    // Ignore image fetch errors
+  }
+  return undefined;
+}
+
 export async function searchProduct(value: string): Promise<DolibarrProduct | null> {
   // Try barcode first — verify exact match
   const byBarcode = await dolibarrFetch(
     `/api/index.php/products?sqlfilters=(barcode:=:'${encodeURIComponent(value)}')&limit=1`
   );
-  if (Array.isArray(byBarcode) && byBarcode.length > 0) return byBarcode[0];
+  if (Array.isArray(byBarcode) && byBarcode.length > 0) {
+    byBarcode[0].imageUrl = await resolveProductImage(byBarcode[0]);
+    return byBarcode[0];
+  }
 
   // Try reference — exact match
   const byRef = await dolibarrFetch(
     `/api/index.php/products?sqlfilters=(ref:=:'${encodeURIComponent(value)}')&limit=1`
   );
-  if (Array.isArray(byRef) && byRef.length > 0) return byRef[0];
+  if (Array.isArray(byRef) && byRef.length > 0) {
+    byRef[0].imageUrl = await resolveProductImage(byRef[0]);
+    return byRef[0];
+  }
 
   return null;
 }
