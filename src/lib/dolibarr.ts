@@ -34,6 +34,12 @@ export interface DolibarrSettings {
   apiKey: string;
 }
 
+export interface SupplierDiscount {
+  id: string;
+  supplier_name: string;
+  discount_percent: number;
+}
+
 // In-memory cache to avoid repeated DB reads during a session
 let cachedSettings: DolibarrSettings | null = null;
 
@@ -75,6 +81,41 @@ export async function saveSettings(settings: DolibarrSettings): Promise<void> {
   cachedSettings = { ...settings };
 }
 
+// --- Supplier discounts ---
+
+export async function getSupplierDiscounts(): Promise<SupplierDiscount[]> {
+  const { data } = await supabase
+    .from("supplier_discounts")
+    .select("id, supplier_name, discount_percent")
+    .order("supplier_name");
+  return (data as SupplierDiscount[]) || [];
+}
+
+export async function saveSupplierDiscount(name: string, percent: number): Promise<void> {
+  const { data: existing } = await supabase
+    .from("supplier_discounts")
+    .select("id")
+    .eq("supplier_name", name)
+    .maybeSingle();
+
+  if (existing) {
+    await supabase
+      .from("supplier_discounts")
+      .update({ discount_percent: percent })
+      .eq("id", existing.id);
+  } else {
+    await supabase
+      .from("supplier_discounts")
+      .insert({ supplier_name: name, discount_percent: percent });
+  }
+}
+
+export async function deleteSupplierDiscount(id: string): Promise<void> {
+  await supabase.from("supplier_discounts").delete().eq("id", id);
+}
+
+// --- Dolibarr API ---
+
 async function dolibarrFetch(endpoint: string): Promise<any> {
   const { baseUrl, apiKey } = await getSettings();
   if (!baseUrl || !apiKey) throw new Error("Configuration Dolibarr manquante");
@@ -94,11 +135,9 @@ async function dolibarrFetch(endpoint: string): Promise<any> {
 
 /**
  * Fetch product image as a Blob via Dolibarr documents API (authenticated).
- * Returns an object URL or undefined.
  */
 export async function fetchProductImageBlob(product: DolibarrProduct): Promise<string | undefined> {
   try {
-    // If image field is already an HTTP URL, use it directly
     if (product.image?.startsWith("http")) {
       return product.image;
     }
@@ -106,7 +145,6 @@ export async function fetchProductImageBlob(product: DolibarrProduct): Promise<s
     const { baseUrl, apiKey } = await getSettings();
     if (!baseUrl || !apiKey) return undefined;
 
-    // Get document list for this product
     const docs = await dolibarrFetch(
       `/api/index.php/documents?modulepart=produit&id=${product.id}`
     );
@@ -116,7 +154,6 @@ export async function fetchProductImageBlob(product: DolibarrProduct): Promise<s
     const img = docs.find((d: any) => /\.(jpe?g|png|gif|webp)$/i.test(d.name));
     if (!img) return undefined;
 
-    // Download the file via the documents download endpoint
     const downloadUrl = `${baseUrl.replace(/\/+$/, "")}/api/index.php/documents/download?modulepart=produit&original_file=${encodeURIComponent(product.ref + "/" + img.name)}`;
 
     const res = await fetch(downloadUrl, {
@@ -127,7 +164,6 @@ export async function fetchProductImageBlob(product: DolibarrProduct): Promise<s
 
     const json = await res.json();
 
-    // Dolibarr returns { filename, content (base64), content-type, ... }
     if (json?.content) {
       const contentType = json["content-type"] || json.contenttype || "image/jpeg";
       const binary = atob(json.content);
@@ -141,9 +177,7 @@ export async function fetchProductImageBlob(product: DolibarrProduct): Promise<s
       }
     }
 
-    // Fallback: direct URL with auth (may not work with CORS)
-    const directUrl = `${baseUrl.replace(/\/+$/, "")}/documents/produit/${product.ref}/${img.name}`;
-    return directUrl;
+    return `${baseUrl.replace(/\/+$/, "")}/documents/produit/${product.ref}/${img.name}`;
   } catch (e) {
     console.error("Erreur chargement image produit:", e);
     return undefined;
@@ -159,29 +193,25 @@ async function resolveSupplierName(supplierId: string): Promise<string> {
     const data = await dolibarrFetch(`/api/index.php/thirdparties/${supplierId}`);
     return data?.name || data?.nom || supplierId;
   } catch {
-    return supplierId; // Fallback to ID if fetch fails
+    return supplierId;
   }
 }
 
 export async function searchProduct(value: string): Promise<DolibarrProduct | null> {
-  // Try barcode first — verify exact match
   const byBarcode = await dolibarrFetch(
     `/api/index.php/products?sqlfilters=(barcode:=:'${encodeURIComponent(value)}')&limit=1`
   );
   if (Array.isArray(byBarcode) && byBarcode.length > 0) {
-    const p = byBarcode[0];
-    await enrichProduct(p);
-    return p;
+    await enrichProduct(byBarcode[0]);
+    return byBarcode[0];
   }
 
-  // Try reference — exact match
   const byRef = await dolibarrFetch(
     `/api/index.php/products?sqlfilters=(ref:=:'${encodeURIComponent(value)}')&limit=1`
   );
   if (Array.isArray(byRef) && byRef.length > 0) {
-    const p = byRef[0];
-    await enrichProduct(p);
-    return p;
+    await enrichProduct(byRef[0]);
+    return byRef[0];
   }
 
   return null;
@@ -201,20 +231,31 @@ export async function testConnection(): Promise<boolean> {
   return !!data;
 }
 
-export function getDiscountedPrice(product: DolibarrProduct): { price: number; discount: number } | null {
+/**
+ * Get the supplier discount for a product.
+ * Matches supplier name (case-insensitive) from the supplier_discounts table.
+ */
+export async function getSupplierDiscountForProduct(product: DolibarrProduct): Promise<{ price: number; discount: number } | null> {
+  const supplierName = product.supplierName || "";
+  if (!supplierName) return null;
+
+  const discounts = await getSupplierDiscounts();
+  const match = discounts.find(
+    (d) => d.supplier_name.toLowerCase() === supplierName.toLowerCase()
+  );
+
+  if (!match || match.discount_percent <= 0) return null;
+
   const priceHt = getPriceHT(product);
-  const priceMinHt = getPriceMinHT(product);
+  const discountedPrice = priceHt * (1 - match.discount_percent / 100);
+  return { price: discountedPrice, discount: match.discount_percent };
+}
 
-  // Only use price_min if it's explicitly set and lower
-  if (priceMinHt > 0 && priceMinHt < priceHt) {
-    const discount = ((priceHt - priceMinHt) / priceHt) * 100;
-    return { price: priceMinHt, discount: Math.round(discount) };
-  }
-
-  const discountPct = parseFloat(product.default_min_quantity_discount || "0");
-  if (discountPct > 0) {
-    return { price: priceHt * (1 - discountPct / 100), discount: Math.round(discountPct) };
-  }
-
+/**
+ * price_min = prix d'achat dans Dolibarr (ne plus l'utiliser comme remise).
+ * La remise vient uniquement de la table supplier_discounts.
+ */
+export function getDiscountedPrice(_product: DolibarrProduct): { price: number; discount: number } | null {
+  // Deprecated sync version — use getSupplierDiscountForProduct instead
   return null;
 }

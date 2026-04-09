@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { DolibarrProduct, getDiscountedPrice, getPriceHT, getPriceMinHT, fetchProductImageBlob } from "@/lib/dolibarr";
+import { DolibarrProduct, getPriceHT, fetchProductImageBlob, getSupplierDiscountForProduct } from "@/lib/dolibarr";
 import { Button } from "@/components/ui/button";
 import { ScanLine, Package, Tag, Truck, MapPin, Loader2, RotateCcw } from "lucide-react";
 
@@ -56,7 +56,6 @@ const ProductImage = ({ product }: { product: DolibarrProduct }) => {
     loadImage();
   }, [product.id]);
 
-  // Cleanup blob URLs
   useEffect(() => {
     return () => {
       if (imageUrl?.startsWith("blob:")) {
@@ -96,7 +95,11 @@ const ProductImage = ({ product }: { product: DolibarrProduct }) => {
 
 const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const priceHt = getPriceHT(product);
-  const discounted = getDiscountedPrice(product);
+  const [discounted, setDiscounted] = useState<{ price: number; discount: number } | null>(null);
+
+  useEffect(() => {
+    getSupplierDiscountForProduct(product).then(setDiscounted);
+  }, [product.id]);
 
   const opts = product.array_options || {};
   const marque = opts.options_marque || "";
@@ -105,16 +108,13 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
 
   return (
     <div className="flex flex-col items-center flex-1 px-4 py-6 gap-5 overflow-y-auto">
-      {/* Product image */}
       <ProductImage product={product} />
 
-      {/* Name & ref */}
       <div className="text-center">
         <h2 className="text-xl font-bold leading-tight">{product.label}</h2>
         <p className="text-sm text-muted-foreground mt-1">Réf: {product.ref}</p>
       </div>
 
-      {/* Extra info: marque, fournisseur, emplacement */}
       {(marque || fournisseur || emplacement) && (
         <div className="w-full max-w-sm bg-card rounded-xl p-3 shadow border border-border space-y-2">
           {marque && <InfoRow icon={Tag} label="Marque" value={marque} />}
@@ -123,9 +123,7 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
         </div>
       )}
 
-      {/* Price blocks */}
       <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
-        {/* Prix HT */}
         <div className="bg-card rounded-xl p-4 shadow text-center border border-border">
           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
             Prix HT
@@ -135,7 +133,6 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
           </p>
         </div>
 
-        {/* Prix Remisé HT */}
         <div className="bg-accent/10 rounded-xl p-4 shadow text-center border border-accent/30 relative">
           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
             Remisé HT
@@ -148,9 +145,6 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
               <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-xs font-bold px-2 py-0.5 rounded-full">
                 -{discounted.discount}%
               </span>
-              <p className="text-[10px] text-muted-foreground mt-1">
-                (prix min: {formatPrice(getPriceMinHT(product))})
-              </p>
             </>
           ) : (
             <p className="text-lg text-muted-foreground">—</p>
@@ -158,10 +152,8 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
         </div>
       </div>
 
-      {/* Stock */}
       <StockBadge stock={product.stock_reel ?? 0} />
 
-      {/* Next scan */}
       <Button onClick={onScanNext} size="lg" className="touch-target text-base font-semibold gap-2 w-full max-w-sm mt-2">
         <ScanLine size={22} />
         Scanner suivant

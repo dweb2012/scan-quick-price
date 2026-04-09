@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { getSettings, saveSettings, testConnection } from "@/lib/dolibarr";
+import { getSettings, saveSettings, testConnection, getSupplierDiscounts, saveSupplierDiscount, deleteSupplierDiscount, SupplierDiscount } from "@/lib/dolibarr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Eye, EyeOff, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 const SettingsPanel = () => {
@@ -12,13 +12,22 @@ const SettingsPanel = () => {
   const [testing, setTesting] = useState(false);
   const [loadingSettings, setLoadingSettings] = useState(true);
 
+  // Supplier discounts
+  const [discounts, setDiscounts] = useState<SupplierDiscount[]>([]);
+  const [newName, setNewName] = useState("");
+  const [newPercent, setNewPercent] = useState("");
+
   useEffect(() => {
-    getSettings().then((s) => {
-      setBaseUrl(s.baseUrl);
-      setApiKey(s.apiKey);
-      setLoadingSettings(false);
-    });
+    Promise.all([
+      getSettings().then((s) => { setBaseUrl(s.baseUrl); setApiKey(s.apiKey); }),
+      loadDiscounts(),
+    ]).finally(() => setLoadingSettings(false));
   }, []);
+
+  const loadDiscounts = async () => {
+    const data = await getSupplierDiscounts();
+    setDiscounts(data);
+  };
 
   const handleSave = async () => {
     await saveSettings({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() });
@@ -26,7 +35,6 @@ const SettingsPanel = () => {
   };
 
   const handleTest = async () => {
-    // Save first so test uses latest values
     await saveSettings({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() });
     setTesting(true);
     try {
@@ -48,6 +56,26 @@ const SettingsPanel = () => {
     }
   };
 
+  const handleAddDiscount = async () => {
+    const name = newName.trim();
+    const percent = parseFloat(newPercent);
+    if (!name || isNaN(percent) || percent <= 0) {
+      toast.error("Nom et pourcentage requis");
+      return;
+    }
+    await saveSupplierDiscount(name, percent);
+    setNewName("");
+    setNewPercent("");
+    await loadDiscounts();
+    toast.success(`Remise ${name} : ${percent}% enregistrée`);
+  };
+
+  const handleDeleteDiscount = async (d: SupplierDiscount) => {
+    await deleteSupplierDiscount(d.id);
+    await loadDiscounts();
+    toast.success(`Remise ${d.supplier_name} supprimée`);
+  };
+
   if (loadingSettings) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -57,7 +85,8 @@ const SettingsPanel = () => {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-6 space-y-5">
+    <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+      {/* Connection settings */}
       <div className="space-y-2">
         <label className="text-sm font-semibold">URL Dolibarr</label>
         <Input
@@ -108,6 +137,50 @@ const SettingsPanel = () => {
         >
           Enregistrer
         </Button>
+      </div>
+
+      {/* Supplier discounts */}
+      <div className="border-t border-border pt-5 space-y-3">
+        <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+          Remises par fournisseur
+        </h3>
+
+        {discounts.length > 0 && (
+          <div className="space-y-2">
+            {discounts.map((d) => (
+              <div key={d.id} className="flex items-center gap-2 bg-card rounded-lg p-3 border border-border">
+                <span className="flex-1 font-medium text-sm">{d.supplier_name}</span>
+                <span className="text-sm font-bold text-accent">-{d.discount_percent}%</span>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteDiscount(d)}>
+                  <Trash2 size={14} className="text-destructive" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex gap-2 items-end">
+          <div className="flex-1">
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Nom fournisseur"
+              className="touch-target text-sm"
+            />
+          </div>
+          <div className="w-20">
+            <Input
+              value={newPercent}
+              onChange={(e) => setNewPercent(e.target.value)}
+              placeholder="%"
+              type="number"
+              className="touch-target text-sm"
+            />
+          </div>
+          <Button size="icon" className="touch-target h-10 w-10" onClick={handleAddDiscount}>
+            <Plus size={18} />
+          </Button>
+        </div>
       </div>
 
       <div className="bg-muted rounded-xl p-4 text-xs text-muted-foreground space-y-1 mt-4">
