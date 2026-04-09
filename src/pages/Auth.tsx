@@ -8,21 +8,14 @@ import { toast } from "sonner";
 const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      if (isSignUp) {
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
-        toast.success("Vérifiez votre email pour confirmer votre compte");
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
     } catch (err: any) {
       toast.error(err.message || "Erreur d'authentification");
     } finally {
@@ -39,7 +32,7 @@ const Auth = () => {
           </div>
           <h1 className="text-2xl font-bold">CHR Elite Scan</h1>
           <p className="text-muted-foreground text-sm">
-            {isSignUp ? "Créer un compte" : "Connectez-vous pour continuer"}
+            Connectez-vous pour continuer
           </p>
         </div>
 
@@ -63,19 +56,9 @@ const Auth = () => {
           />
           <Button type="submit" className="w-full touch-target text-base" disabled={loading}>
             {loading && <Loader2 size={16} className="animate-spin mr-2" />}
-            {isSignUp ? "Créer un compte" : "Se connecter"}
+            Se connecter
           </Button>
         </form>
-
-        <p className="text-center text-sm text-muted-foreground">
-          {isSignUp ? "Déjà un compte ?" : "Pas encore de compte ?"}{" "}
-          <button
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="text-primary font-medium underline"
-          >
-            {isSignUp ? "Se connecter" : "Créer un compte"}
-          </button>
-        </p>
       </div>
     </div>
   );
