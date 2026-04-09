@@ -117,13 +117,19 @@ export async function deleteSupplierDiscount(id: string): Promise<void> {
 
 // --- Dolibarr API ---
 
-async function dolibarrFetch(endpoint: string): Promise<any> {
+async function dolibarrFetch(endpoint: string, options?: RequestInit): Promise<any> {
   const { baseUrl, apiKey } = await getSettings();
   if (!baseUrl || !apiKey) throw new Error("Configuration Dolibarr manquante");
 
   const url = `${baseUrl.replace(/\/+$/, "")}${endpoint}`;
   const res = await fetch(url, {
-    headers: { DOLAPIKEY: apiKey, Accept: "application/json" },
+    ...options,
+    headers: {
+      DOLAPIKEY: apiKey,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(options?.headers || {}),
+    },
   });
 
   if (!res.ok) {
@@ -132,6 +138,58 @@ async function dolibarrFetch(endpoint: string): Promise<any> {
     throw new Error(`Erreur API (${res.status}): ${text.slice(0, 200)}`);
   }
   return res.json();
+}
+
+/**
+ * Create a stock movement for a product.
+ * @param productId Dolibarr product ID
+ * @param qty Positive = add stock, negative = remove stock
+ * @param warehouseId Dolibarr warehouse ID
+ * @param label Optional movement label
+ */
+export async function updateProductStock(
+  productId: number,
+  qty: number,
+  warehouseId: number,
+  label = "Mise à jour depuis CHR Elite Scan"
+): Promise<void> {
+  await dolibarrFetch(
+    `/api/index.php/stockmovements`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        product_id: productId,
+        warehouse_id: warehouseId,
+        qty,
+        label,
+      }),
+    }
+  );
+}
+
+/**
+ * Update product extrafields (e.g. emplacement).
+ */
+export async function updateProductExtrafields(
+  productId: number,
+  extrafields: Record<string, string>
+): Promise<void> {
+  await dolibarrFetch(
+    `/api/index.php/products/${productId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ array_options: extrafields }),
+    }
+  );
+}
+
+/**
+ * Get list of warehouses from Dolibarr.
+ */
+export async function getWarehouses(): Promise<{ id: number; label: string; ref: string }[]> {
+  const data = await dolibarrFetch(`/api/index.php/warehouses?limit=100`);
+  if (!Array.isArray(data)) return [];
+  return data.map((w: any) => ({ id: parseInt(w.id), label: w.label || w.ref, ref: w.ref }));
 }
 
 /**
