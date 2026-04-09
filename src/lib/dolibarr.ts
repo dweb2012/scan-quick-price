@@ -259,16 +259,18 @@ async function resolveSupplierName(supplierId: string): Promise<string> {
 }
 
 export async function searchProduct(value: string): Promise<DolibarrProduct | null> {
-  const byBarcode = await dolibarrFetch(
-    `/api/index.php/products?sqlfilters=(barcode:=:'${encodeURIComponent(value)}')&limit=1`
+  const byBarcode = await dolibarrProxy(
+    `/api/index.php/products?sqlfilters=(barcode:=:'${encodeURIComponent(value)}')&limit=1`,
+    "GET"
   );
   if (Array.isArray(byBarcode) && byBarcode.length > 0) {
     await enrichProduct(byBarcode[0]);
     return byBarcode[0];
   }
 
-  const byRef = await dolibarrFetch(
-    `/api/index.php/products?sqlfilters=(ref:=:'${encodeURIComponent(value)}')&limit=1`
+  const byRef = await dolibarrProxy(
+    `/api/index.php/products?sqlfilters=(ref:=:'${encodeURIComponent(value)}')&limit=1`,
+    "GET"
   );
   if (Array.isArray(byRef) && byRef.length > 0) {
     await enrichProduct(byRef[0]);
