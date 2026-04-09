@@ -1,6 +1,6 @@
 {
-  "name": "CHR PriceScanner",
-  "short_name": "CHR Scan",
+  "name": "CHR Elite Scan",
+  "short_name": "CHR Elite",
   "description": "Scanner de prix pour entrepôt CHR",
   "start_url": "/",
   "display": "standalone",
