@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Html5Qrcode } from "html5-qrcode";
-import { Camera, Keyboard, X, Loader2 } from "lucide-react";
+import { Camera, Keyboard, X, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { autocompleteProducts, DolibarrProduct } from "@/lib/dolibarr";
 
 interface BarcodeScannerProps {
   onScan: (code: string) => void;
@@ -14,8 +15,11 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
   const [manualMode, setManualMode] = useState(false);
   const [manualValue, setManualValue] = useState("");
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<DolibarrProduct[]>([]);
+  const [autocompleteLoading, setAutocompleteLoading] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerRef = useRef<string>("scanner-container");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const stopScanner = useCallback(async () => {
     if (scannerRef.current) {
@@ -64,9 +68,38 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
     };
   }, [stopScanner]);
 
+  // Autocomplete debounce
+  const handleInputChange = (val: string) => {
+    setManualValue(val);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (val.trim().length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      setAutocompleteLoading(true);
+      try {
+        const results = await autocompleteProducts(val.trim());
+        setSuggestions(results);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setAutocompleteLoading(false);
+      }
+    }, 300);
+  };
+
+  const handleSelectSuggestion = (product: DolibarrProduct) => {
+    setSuggestions([]);
+    setManualValue("");
+    if (navigator.vibrate) navigator.vibrate(50);
+    onScan(product.ref);
+  };
+
   const handleManualSubmit = () => {
     const val = manualValue.trim();
     if (val) {
+      setSuggestions([]);
       if (navigator.vibrate) navigator.vibrate(50);
       onScan(val);
       setManualValue("");
@@ -117,7 +150,10 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
           </Button>
           <Button
             variant="outline"
-            onClick={() => setManualMode(!manualMode)}
+            onClick={() => {
+              setManualMode(!manualMode);
+              setSuggestions([]);
+            }}
             className="touch-target text-base gap-2"
             size="lg"
           >
@@ -134,24 +170,51 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
         </div>
       )}
 
-      {/* Manual input */}
+      {/* Manual input with autocomplete */}
       {manualMode && !loading && (
-        <div className="w-full max-w-sm flex gap-2">
-          <Input
-            value={manualValue}
-            onChange={(e) => setManualValue(e.target.value)}
-            placeholder="Code-barres ou référence"
-            className="touch-target text-base"
-            onKeyDown={(e) => e.key === "Enter" && handleManualSubmit()}
-            autoFocus
-          />
-          <Button
-            onClick={handleManualSubmit}
-            disabled={!manualValue.trim()}
-            className="touch-target px-6"
-          >
-            OK
-          </Button>
+        <div className="w-full max-w-sm relative">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={manualValue}
+                onChange={(e) => handleInputChange(e.target.value)}
+                placeholder="Référence ou nom du produit"
+                className="touch-target text-base pl-9"
+                onKeyDown={(e) => e.key === "Enter" && handleManualSubmit()}
+                autoFocus
+              />
+            </div>
+            <Button
+              onClick={handleManualSubmit}
+              disabled={!manualValue.trim()}
+              className="touch-target px-6"
+            >
+              OK
+            </Button>
+          </div>
+
+          {/* Autocomplete dropdown */}
+          {(suggestions.length > 0 || autocompleteLoading) && (
+            <div className="absolute z-50 left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto">
+              {autocompleteLoading && (
+                <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
+                  <Loader2 size={14} className="animate-spin" />
+                  Recherche…
+                </div>
+              )}
+              {suggestions.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => handleSelectSuggestion(p)}
+                  className="w-full text-left px-4 py-3 hover:bg-accent/50 active:bg-accent transition-colors border-b border-border last:border-0 touch-target"
+                >
+                  <div className="font-semibold text-sm">{p.ref}</div>
+                  <div className="text-xs text-muted-foreground truncate">{p.label}</div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

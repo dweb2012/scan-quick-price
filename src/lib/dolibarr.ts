@@ -259,3 +259,37 @@ export function getDiscountedPrice(_product: DolibarrProduct): { price: number; 
   // Deprecated sync version — use getSupplierDiscountForProduct instead
   return null;
 }
+
+/**
+ * Autocomplete search: returns products matching a partial ref or label.
+ * Uses LIKE filter on ref and label fields.
+ */
+export async function autocompleteProducts(query: string): Promise<DolibarrProduct[]> {
+  if (!query || query.length < 2) return [];
+
+  // Search by ref (LIKE)
+  const byRef = await dolibarrFetch(
+    `/api/index.php/products?sqlfilters=(ref:like:'%25${encodeURIComponent(query)}%25')&limit=8`
+  );
+
+  // Search by label (LIKE)
+  const byLabel = await dolibarrFetch(
+    `/api/index.php/products?sqlfilters=(label:like:'%25${encodeURIComponent(query)}%25')&limit=8`
+  );
+
+  const results: DolibarrProduct[] = [];
+  const seen = new Set<number>();
+
+  for (const list of [byRef, byLabel]) {
+    if (Array.isArray(list)) {
+      for (const p of list) {
+        if (!seen.has(p.id)) {
+          seen.add(p.id);
+          results.push(p);
+        }
+      }
+    }
+  }
+
+  return results.slice(0, 10);
+}
