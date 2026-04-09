@@ -1,3 +1,5 @@
+import { supabase } from "@/integrations/supabase/client";
+
 export interface DolibarrProduct {
   id: number;
   ref: string;
@@ -16,20 +18,51 @@ export interface DolibarrSettings {
   apiKey: string;
 }
 
-export function getSettings(): DolibarrSettings {
-  return {
-    baseUrl: localStorage.getItem("dolibarr_url") || "",
-    apiKey: localStorage.getItem("dolibarr_apikey") || "",
-  };
+// In-memory cache to avoid repeated DB reads during a session
+let cachedSettings: DolibarrSettings | null = null;
+
+export async function getSettings(): Promise<DolibarrSettings> {
+  if (cachedSettings) return cachedSettings;
+
+  const { data, error } = await supabase
+    .from("connection_settings")
+    .select("base_url, api_key")
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    return { baseUrl: "", apiKey: "" };
+  }
+
+  cachedSettings = { baseUrl: data.base_url, apiKey: data.api_key };
+  return cachedSettings;
 }
 
-export function saveSettings(settings: DolibarrSettings) {
-  localStorage.setItem("dolibarr_url", settings.baseUrl);
-  localStorage.setItem("dolibarr_apikey", settings.apiKey);
+export async function saveSettings(settings: DolibarrSettings): Promise<void> {
+  // Check if a row already exists
+  const { data: existing } = await supabase
+    .from("connection_settings")
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    await supabase
+      .from("connection_settings")
+      .update({ base_url: settings.baseUrl, api_key: settings.apiKey })
+      .eq("id", existing.id);
+  } else {
+    await supabase
+      .from("connection_settings")
+      .insert({ base_url: settings.baseUrl, api_key: settings.apiKey });
+  }
+
+  // Update cache
+  cachedSettings = { ...settings };
 }
 
 async function dolibarrFetch(endpoint: string): Promise<any> {
-  const { baseUrl, apiKey } = getSettings();
+  const { baseUrl, apiKey } = await getSettings();
   if (!baseUrl || !apiKey) throw new Error("Configuration Dolibarr manquante");
 
   const url = `${baseUrl.replace(/\/+$/, "")}${endpoint}`;
