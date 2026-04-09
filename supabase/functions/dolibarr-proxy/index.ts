@@ -89,12 +89,21 @@ Deno.serve(async (req) => {
 
     return new Response(responseText, {
       status: doliResponse.status,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: {
+        ...corsHeaders,
+        "Content-Type": doliResponse.headers.get("content-type") || "application/json",
+      },
     });
   } catch (err: any) {
     console.error("dolibarr-proxy error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
+    return new Response(JSON.stringify({
+      ok: false,
+      error: err?.message || "Erreur interne proxy Dolibarr",
+      diagnostics: {
+        stage: "runtime_error",
+      },
+    }), {
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
