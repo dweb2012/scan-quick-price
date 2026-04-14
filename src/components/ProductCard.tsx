@@ -255,9 +255,11 @@ const LocationEditor = ({ product }: { product: DolibarrProduct }) => {
 const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const priceHt = getPriceHT(product);
   const [discounted, setDiscounted] = useState<{ price: number; discount: number } | null>(null);
+  const [promos, setPromos] = useState<PromoPrice[]>([]);
 
   useEffect(() => {
     getSupplierDiscountForProduct(product).then(setDiscounted);
+    getProductPromos(product.id).then(setPromos);
   }, [product.id]);
 
   const opts = product.array_options || {};
