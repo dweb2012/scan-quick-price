@@ -31,27 +31,47 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
     setScanning(false);
   }, []);
 
-  const startScanner = useCallback(async () => {
+  const startScanner = useCallback(() => {
     setCameraError(null);
     setManualMode(false);
     try {
       const scanner = new Html5Qrcode(containerRef.current);
       scannerRef.current = scanner;
       setScanning(true);
-      await scanner.start(
+
+      // iOS iPhones with multi-lens need higher resolution + native BarcodeDetector
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+      scanner.start(
         { facingMode: "environment" },
         {
-          fps: 10,
+          fps: isIOS ? 30 : 10,
           qrbox: { width: 280, height: 160 },
-          aspectRatio: 1,
-        },
+          ...(isIOS ? {} : { aspectRatio: 1 }),
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true,
+          },
+          videoConstraints: isIOS ? {
+            facingMode: "environment",
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          } : undefined,
+        } as any,
         (decodedText) => {
           if (navigator.vibrate) navigator.vibrate(100);
           stopScanner();
           onScan(decodedText);
         },
         () => {}
-      );
+      ).catch((err: any) => {
+        setScanning(false);
+        setCameraError(
+          err?.message?.includes("Permission")
+            ? "Accès caméra refusé. Veuillez autoriser l'accès dans les paramètres de votre navigateur."
+            : "Impossible d'accéder à la caméra. Vérifiez les permissions."
+        );
+      });
     } catch (err: any) {
       setScanning(false);
       setCameraError(
