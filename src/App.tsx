@@ -43,6 +43,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <AuthGate />
+      <InstallPrompt />
     </TooltipProvider>
   </QueryClientProvider>
 );
