@@ -1,5 +1,4 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
-import { Client } from "https://deno.land/x/mysql@v2.12.1/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,65 +44,61 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Connect to Dolibarr MySQL
-    const dbHost = Deno.env.get("DOLIBARR_DB_HOST");
-    const dbPort = parseInt(Deno.env.get("DOLIBARR_DB_PORT") || "3306");
-    const dbName = Deno.env.get("DOLIBARR_DB_NAME");
-    const dbUser = Deno.env.get("DOLIBARR_DB_USER");
-    const dbPassword = Deno.env.get("DOLIBARR_DB_PASSWORD");
+    // Get Dolibarr base URL from connection_settings
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    const { data: settings } = await adminClient
+      .from("connection_settings")
+      .select("base_url")
+      .limit(1)
+      .maybeSingle();
 
-    if (!dbHost || !dbName || !dbUser) {
+    if (!settings?.base_url) {
       return new Response(
-        JSON.stringify({ ok: false, error: "Configuration MySQL Dolibarr manquante" }),
+        JSON.stringify({ ok: false, error: "URL Dolibarr non configurée" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const client = await new Client().connect({
-      hostname: dbHost,
-      port: dbPort,
-      db: dbName,
-      username: dbUser,
-      password: dbPassword || "",
+    const promosApiKey = Deno.env.get("DOLIBARR_PROMOS_API_KEY");
+    if (!promosApiKey) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "DOLIBARR_PROMOS_API_KEY non configurée" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Call PHP script on the Dolibarr server
+    const baseUrl = settings.base_url.replace(/\/+$/, "");
+    const phpUrl = `${baseUrl}/custom/api_promos.php`;
+
+    const res = await fetch(phpUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": promosApiKey,
+      },
+      body: JSON.stringify({ product_id: productId }),
     });
 
-    try {
-      // Query active promos for this product (where today is between date_begin and date_end)
-      const rows = await client.execute(
-        `SELECT rowid, label, discount, price, price_ttc, date_begin, date_end
-         FROM llx_discountprice_product
-         WHERE fk_product = ?
-           AND (date_begin IS NULL OR date_begin <= CURDATE())
-           AND (date_end IS NULL OR date_end >= CURDATE())
-         ORDER BY price ASC
-         LIMIT 5`,
-        [productId]
+    if (!res.ok) {
+      const text = await res.text();
+      return new Response(
+        JSON.stringify({ ok: false, error: `Erreur PHP (${res.status}): ${text.slice(0, 200)}` }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-
-      const promos = (rows.rows || []).map((row: any) => ({
-        id: row.rowid,
-        label: row.label || "",
-        discount: row.discount ?? null,
-        price: row.price ?? null,
-        price_ttc: row.price_ttc ?? null,
-        date_begin: row.date_begin || null,
-        date_end: row.date_end || null,
-      }));
-
-      return new Response(JSON.stringify({ ok: true, promos }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    } finally {
-      await client.close();
     }
+
+    const phpData = await res.json();
+
+    return new Response(JSON.stringify({ ok: true, promos: phpData.promos || [] }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (err: any) {
     console.error("dolibarr-promos error:", err);
     return new Response(
-      JSON.stringify({
-        ok: false,
-        error: err?.message || "Erreur interne",
-      }),
+      JSON.stringify({ ok: false, error: err?.message || "Erreur interne" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { DolibarrProduct, getPriceHT, fetchProductImageBlob, getSupplierDiscountForProduct, updateProductStock, updateProductExtrafields, getWarehouses } from "@/lib/dolibarr";
+import { DolibarrProduct, getPriceHT, fetchProductImageBlob, getSupplierDiscountForProduct, getProductPromos, PromoPrice, updateProductStock, updateProductExtrafields, getWarehouses } from "@/lib/dolibarr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScanLine, Package, Tag, Truck, MapPin, Loader2, RotateCcw, Edit2, Plus, Minus, Save, X, Warehouse } from "lucide-react";
@@ -255,9 +255,11 @@ const LocationEditor = ({ product }: { product: DolibarrProduct }) => {
 const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const priceHt = getPriceHT(product);
   const [discounted, setDiscounted] = useState<{ price: number; discount: number } | null>(null);
+  const [promos, setPromos] = useState<PromoPrice[]>([]);
 
   useEffect(() => {
     getSupplierDiscountForProduct(product).then(setDiscounted);
+    getProductPromos(product.id).then(setPromos);
   }, [product.id]);
 
   const opts = product.array_options || {};
@@ -310,6 +312,39 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
           )}
         </div>
       </div>
+
+      {/* Active promos from Dolibarr plugin */}
+      {promos.length > 0 && (
+        <div className="w-full max-w-sm bg-card rounded-xl p-4 shadow border border-accent/30 space-y-2">
+          <p className="text-xs font-bold uppercase tracking-wide text-accent flex items-center gap-1">
+            <Tag size={14} /> Promo active
+          </p>
+          {promos.map((promo) => (
+            <div key={promo.id} className="flex items-center justify-between">
+              <div className="text-sm">
+                {promo.label && <span className="font-medium">{promo.label}</span>}
+                {promo.date_end && (
+                  <span className="text-xs text-muted-foreground ml-2">
+                    jusqu'au {new Date(promo.date_end).toLocaleDateString("fr-FR")}
+                  </span>
+                )}
+              </div>
+              <div className="text-right">
+                {promo.price != null && (
+                  <span className="text-lg font-extrabold text-price-remise">
+                    {formatPrice(promo.price)}
+                  </span>
+                )}
+                {promo.discount != null && promo.discount > 0 && (
+                  <span className="ml-2 bg-accent text-accent-foreground text-xs font-bold px-2 py-0.5 rounded-full">
+                    -{promo.discount}%
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <StockBadge stock={product.stock_reel ?? 0} />
 

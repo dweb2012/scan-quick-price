@@ -331,6 +331,31 @@ export function getDiscountedPrice(_product: DolibarrProduct): { price: number; 
   return null;
 }
 
+export interface PromoPrice {
+  id: number;
+  label: string;
+  discount: number | null;
+  price: number | null;
+  price_ttc: number | null;
+  date_begin: string | null;
+  date_end: string | null;
+}
+
+/**
+ * Fetch active promos for a product via the dolibarr-promos edge function (PHP script).
+ */
+export async function getProductPromos(productId: number): Promise<PromoPrice[]> {
+  try {
+    const { data, error } = await supabase.functions.invoke("dolibarr-promos", {
+      body: { product_id: productId },
+    });
+    if (error || !data?.ok) return [];
+    return data.promos || [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Autocomplete search: returns products matching a partial ref or label.
  * Uses LIKE filter on ref and label fields.
