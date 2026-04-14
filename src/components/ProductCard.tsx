@@ -266,6 +266,22 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const marque = opts.options_marque || "";
   const fournisseur = product.supplierName || opts.options_fournisseur || "";
   const emplacement = opts.options_emplacement || "";
+  const primaryPromo = promos.reduce<PromoPrice | null>((bestPromo, promo) => {
+    if (promo.price == null) return bestPromo;
+    if (!bestPromo || promo.price < (bestPromo.price ?? Number.POSITIVE_INFINITY)) {
+      return promo;
+    }
+    return bestPromo;
+  }, null);
+  const highlightedPrice = primaryPromo?.price ?? discounted?.price ?? null;
+  const highlightedLabel = primaryPromo ? "Promo HT" : "Remisé HT";
+  const highlightedBadge = primaryPromo
+    ? primaryPromo.discount != null && primaryPromo.discount > 0
+      ? `-${primaryPromo.discount}%`
+      : "PROMO"
+    : discounted
+      ? `-${discounted.discount}%`
+      : null;
 
   return (
     <div className="flex flex-col items-center flex-1 px-4 py-6 gap-5 overflow-y-auto">
@@ -296,16 +312,18 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
 
         <div className="bg-accent/10 rounded-xl p-4 shadow text-center border border-accent/30 relative">
           <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
-            Remisé HT
+            {highlightedLabel}
           </p>
-          {discounted ? (
+          {highlightedPrice != null ? (
             <>
               <p className="text-2xl font-extrabold text-price-remise">
-                {formatPrice(discounted.price)}
+                {formatPrice(highlightedPrice)}
               </p>
-              <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-xs font-bold px-2 py-0.5 rounded-full">
-                -{discounted.discount}%
-              </span>
+              {highlightedBadge && (
+                <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-xs font-bold px-2 py-0.5 rounded-full">
+                  {highlightedBadge}
+                </span>
+              )}
             </>
           ) : (
             <p className="text-lg text-muted-foreground">—</p>

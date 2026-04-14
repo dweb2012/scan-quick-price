@@ -35,9 +35,15 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const productId = body?.product_id;
+    const rawProductId = body?.product_id;
+    const productId =
+      typeof rawProductId === "number"
+        ? rawProductId
+        : typeof rawProductId === "string"
+          ? Number(rawProductId)
+          : NaN;
 
-    if (!productId || typeof productId !== "number") {
+    if (!Number.isFinite(productId) || productId <= 0) {
       return new Response(
         JSON.stringify({ ok: false, error: "product_id (number) requis" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
