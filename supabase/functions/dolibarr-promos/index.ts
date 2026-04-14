@@ -68,17 +68,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Call PHP script on the Dolibarr server
+    // Call PHP script via GET with query params (PHP reads $_GET)
     const baseUrl = settings.base_url.replace(/\/+$/, "");
-    const phpUrl = `${baseUrl}/custom/api_promos.php`;
+    const phpUrl = `${baseUrl}/custom/api_promos.php?product_id=${productId}&api_key=${encodeURIComponent(promosApiKey)}`;
 
     const res = await fetch(phpUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-KEY": promosApiKey,
-      },
-      body: JSON.stringify({ product_id: productId }),
+      method: "GET",
+      headers: { "Accept": "application/json" },
     });
 
     if (!res.ok) {
