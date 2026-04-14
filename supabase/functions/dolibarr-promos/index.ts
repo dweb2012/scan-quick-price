@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const client = await connect({
+    const client = await new Client().connect({
       hostname: dbHost,
       port: dbPort,
       db: dbName,
