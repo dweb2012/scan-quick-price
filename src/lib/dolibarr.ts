@@ -56,6 +56,20 @@ export interface SupplierDiscount {
   socid: string;
 }
 
+function toNumericId(value: unknown): number {
+  const numericValue = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+function normalizeProduct(rawProduct: any): DolibarrProduct {
+  return {
+    ...rawProduct,
+    id: toNumericId(rawProduct?.id),
+    stock_reel:
+      rawProduct?.stock_reel == null ? 0 : toNumericId(rawProduct.stock_reel),
+  };
+}
+
 // In-memory cache to avoid repeated DB reads during a session
 let cachedSettings: DolibarrSettings | null = null;
 
@@ -267,8 +281,9 @@ export async function searchProduct(value: string): Promise<DolibarrProduct | nu
     "GET"
   );
   if (Array.isArray(byBarcode) && byBarcode.length > 0) {
-    await enrichProduct(byBarcode[0]);
-    return byBarcode[0];
+    const product = normalizeProduct(byBarcode[0]);
+    await enrichProduct(product);
+    return product;
   }
 
   const byRef = await dolibarrProxy(
@@ -276,8 +291,9 @@ export async function searchProduct(value: string): Promise<DolibarrProduct | nu
     "GET"
   );
   if (Array.isArray(byRef) && byRef.length > 0) {
-    await enrichProduct(byRef[0]);
-    return byRef[0];
+    const product = normalizeProduct(byRef[0]);
+    await enrichProduct(product);
+    return product;
   }
 
   return null;
@@ -346,8 +362,11 @@ export interface PromoPrice {
  */
 export async function getProductPromos(productId: number): Promise<PromoPrice[]> {
   try {
+    const normalizedProductId = toNumericId(productId);
+    if (!normalizedProductId) return [];
+
     const { data, error } = await supabase.functions.invoke("dolibarr-promos", {
-      body: { product_id: productId },
+      body: { product_id: normalizedProductId },
     });
     if (error || !data?.ok) return [];
     return data.promos || [];
@@ -378,9 +397,10 @@ export async function autocompleteProducts(query: string): Promise<DolibarrProdu
   for (const list of [byRef, byLabel]) {
     if (Array.isArray(list)) {
       for (const p of list) {
-        if (!seen.has(p.id)) {
-          seen.add(p.id);
-          results.push(p);
+        const product = normalizeProduct(p);
+        if (!seen.has(product.id)) {
+          seen.add(product.id);
+          results.push(product);
         }
       }
     }
