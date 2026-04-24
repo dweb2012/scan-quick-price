@@ -6,8 +6,24 @@ const formatPrice = (n: number) =>
   n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 
 /**
- * Generate a 57x32mm label PDF for the DYMO LabelWriter 550.
- * Layout (top → bottom): Ref, Label, Location (if any), Prix HT, Prix remisé HT (if any), Barcode.
+ * Clean a product label by removing inventory/batch prefixes such as
+ * "14/03 BMY HEN" (date DD/MM optionally followed by uppercase tokens).
+ */
+const cleanLabel = (label: string): string => {
+  if (!label) return "";
+  let out = label;
+  // Remove leading "DD/MM" or "DD/MM/YY(YY)" + following uppercase tokens (BMY HEN…)
+  out = out.replace(/^\s*\d{1,2}\/\d{1,2}(?:\/\d{2,4})?(?:\s+[A-Z0-9]{2,})*\s*[-:]?\s*/u, "");
+  // Remove any remaining leading separators
+  out = out.replace(/^[\s\-:|]+/, "");
+  return out.trim();
+};
+
+/**
+ * Generate a 32x57mm label PDF (portrait) for the DYMO LabelWriter 550
+ * (DYMO S0722540 "Étiquettes polyvalentes 32 x 57 mm LW").
+ * Layout (top → bottom): Ref + Emplacement, Label (max 2 lines),
+ * Prix HT, Prix remisé HT (if any), Barcode.
  */
 export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> {
   // Fetch best discounted price (supplier discount or promo, whichever is lower)
@@ -30,45 +46,47 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
   const opts = product.array_options || {};
   const emplacement = opts.options_emplacement || "";
 
-  // 57 x 32 mm label, landscape
-  const W = 57;
-  const H = 32;
-  const doc = new jsPDF({ unit: "mm", format: [W, H], orientation: "landscape" });
+  // 32 x 57 mm label (DYMO S0722540), portrait — 32mm wide, 57mm tall
+  const W = 32;
+  const H = 57;
+  const doc = new jsPDF({ unit: "mm", format: [W, H], orientation: "portrait" });
 
   const margin = 1.5;
   let y = margin + 2;
 
   // Ref (top-left, bold)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
+  doc.setFontSize(7);
   doc.text(`Réf: ${product.ref}`, margin, y);
 
-  // Emplacement (top-right)
+  // Emplacement (next line, right-aligned)
   if (emplacement) {
+    y += 3;
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    const txt = emplacement.length > 14 ? emplacement.slice(0, 14) : emplacement;
+    doc.setFontSize(6.5);
+    const txt = emplacement.length > 18 ? emplacement.slice(0, 18) : emplacement;
     doc.text(txt, W - margin, y, { align: "right" });
   }
 
-  // Label (truncated if too long)
-  y += 3;
+  // Label (cleaned + max 2 lines)
+  y += 3.5;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
-  const labelLines = doc.splitTextToSize(product.label || "", W - margin * 2);
+  const cleaned = cleanLabel(product.label || "");
+  const labelLines = doc.splitTextToSize(cleaned, W - margin * 2);
   const lines = labelLines.slice(0, 2);
   doc.text(lines, margin, y);
-  y += lines.length * 2.6;
+  y += lines.length * 2.8;
 
-  // Prices row
-  y += 1;
+  // Prices
+  y += 1.5;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.text(`HT: ${formatPrice(priceHt)}`, margin, y);
 
   if (remisedHt != null) {
-    y += 4;
-    doc.setFontSize(10);
+    y += 4.5;
+    doc.setFontSize(9.5);
     doc.text(`Remisé: ${formatPrice(remisedHt)}`, margin, y);
   }
 
@@ -80,14 +98,14 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
       JsBarcode(canvas, barcodeValue, {
         format: "CODE128",
         displayValue: true,
-        fontSize: 14,
+        fontSize: 16,
         margin: 0,
-        height: 40,
+        height: 50,
         width: 2,
       });
       const dataUrl = canvas.toDataURL("image/png");
       // Place barcode at the bottom, full width minus margins
-      const bcH = 9;
+      const bcH = 12;
       const bcW = W - margin * 2;
       doc.addImage(dataUrl, "PNG", margin, H - bcH - margin, bcW, bcH);
     } catch (e) {
