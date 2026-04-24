@@ -1,5 +1,4 @@
 import jsPDF from "jspdf";
-import JsBarcode from "jsbarcode";
 import { DolibarrProduct, getPriceHT, getSupplierDiscountForProduct, getProductPromos } from "./dolibarr";
 
 const formatPrice = (n: number) =>
@@ -52,69 +51,41 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
   const doc = new jsPDF({ unit: "mm", format: [W, H], orientation: "landscape" });
 
   const margin = 1.5;
-
-  // Colonne gauche : infos texte / Colonne droite : code-barres
-  const leftW = 34; // largeur zone texte
-  const rightX = leftW + 0.5;
-  const rightW = W - rightX - margin;
-
+  const contentW = W - margin * 2;
   let y = margin + 2.2;
 
   // Ref (haut-gauche, bold)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7);
+  doc.setFontSize(8);
   doc.text(`Réf: ${product.ref}`, margin, y);
 
-  // Emplacement (à droite de la même ligne, dans la zone gauche)
+  // Emplacement (haut-droite)
   if (emplacement) {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.5);
-    const txt = emplacement.length > 14 ? emplacement.slice(0, 14) : emplacement;
-    doc.text(txt, leftW - 0.5, y, { align: "right" });
+    doc.setFontSize(7.5);
+    const txt = emplacement.length > 22 ? emplacement.slice(0, 22) : emplacement;
+    doc.text(txt, W - margin, y, { align: "right" });
   }
 
-  // Libellé (nettoyé + max 2 lignes)
-  y += 3.2;
+  // Libellé (nettoyé + max 2 lignes) sur toute la largeur
+  y += 3.6;
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
+  doc.setFontSize(8);
   const cleaned = cleanLabel(product.label || "");
-  const labelLines = doc.splitTextToSize(cleaned, leftW - margin);
+  const labelLines = doc.splitTextToSize(cleaned, contentW);
   const lines = labelLines.slice(0, 2);
   doc.text(lines, margin, y);
-  y += lines.length * 2.8;
+  y += lines.length * 3.2;
 
-  // Prix
-  y += 1.2;
+  // Prix HT (gauche) et Remisé (droite) sur la même ligne en bas
+  y = H - margin - 2;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.5);
+  doc.setFontSize(11);
   doc.text(`HT: ${formatPrice(priceHt)}`, margin, y);
 
   if (remisedHt != null) {
-    y += 4.2;
-    doc.setFontSize(9);
-    doc.text(`Remisé: ${formatPrice(remisedHt)}`, margin, y);
-  }
-
-  // Code-barres à droite, occupe toute la hauteur de l'étiquette
-  const barcodeValue = product.barcode || product.ref;
-  if (barcodeValue) {
-    try {
-      const canvas = document.createElement("canvas");
-      JsBarcode(canvas, barcodeValue, {
-        format: "CODE128",
-        displayValue: true,
-        fontSize: 14,
-        margin: 0,
-        height: 60,
-        width: 2,
-      });
-      const dataUrl = canvas.toDataURL("image/png");
-      const bcH = H - margin * 2;
-      const bcW = rightW;
-      doc.addImage(dataUrl, "PNG", rightX, margin, bcW, bcH);
-    } catch (e) {
-      console.warn("Barcode generation failed", e);
-    }
+    doc.setFontSize(11);
+    doc.text(`Remisé: ${formatPrice(remisedHt)}`, W - margin, y, { align: "right" });
   }
 
   return doc.output("blob");
