@@ -393,7 +393,7 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
         className="touch-target text-base font-semibold gap-2 w-full max-w-sm"
       >
         {printing ? <Loader2 size={20} className="animate-spin" /> : <Printer size={20} />}
-        Imprimer étiquette (32×57 mm)
+        Imprimer étiquette (57×32 mm)
       </Button>
 
       <Button onClick={onScanNext} size="lg" className="touch-target text-base font-semibold gap-2 w-full max-w-sm mt-2">
