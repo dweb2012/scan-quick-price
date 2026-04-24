@@ -45,47 +45,69 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
   const opts = product.array_options || {};
   const emplacement = opts.options_emplacement || "";
 
-  // 57 x 32 mm label (DYMO S0722540), paysage — 57mm large, 32mm haut
-  const W = 57;
-  const H = 32;
-  const doc = new jsPDF({ unit: "mm", format: [W, H], orientation: "landscape" });
+  // DYMO 30334 (S0722540) : étiquette physique 57 x 32 mm.
+  // Le pilote DYMO LabelWriter attend la page en PORTRAIT (32 large × 57 haut).
+  // Si on envoie un PDF paysage 57×32, il s'étale sur 2 étiquettes.
+  // → On génère donc en portrait 32×57 et on dessine le contenu pivoté de 90°
+  //   pour conserver une lecture en paysage sur l'étiquette.
+  const PAGE_W = 32; // largeur page PDF (= petit côté étiquette)
+  const PAGE_H = 57; // hauteur page PDF (= grand côté étiquette)
+  const doc = new jsPDF({ unit: "mm", format: [PAGE_W, PAGE_H], orientation: "portrait" });
 
+  // Espace de dessin "logique" en paysage (W large, H haut)
+  const W = PAGE_H; // 57
+  const H = PAGE_W; // 32
   const margin = 1.5;
   const contentW = W - margin * 2;
+
+  // Conversion d'un point (x,y) du repère paysage vers le repère portrait du PDF.
+  // Rotation 90° anti-horaire : (x, y)_paysage → (y, W - x)_portrait
+  const tx = (_x: number, y: number) => y;
+  const ty = (x: number, _y: number) => W - x;
+  const ANGLE = 90; // jsPDF tourne le texte en degrés (anti-horaire)
+
   let y = margin + 2.2;
 
-  // Ref (haut-gauche, bold)
+  // Réf (haut-gauche)
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
-  doc.text(`Réf: ${product.ref}`, margin, y);
+  doc.text(`Réf: ${product.ref}`, tx(margin, y), ty(margin, y), { angle: ANGLE });
 
   // Emplacement (haut-droite)
   if (emplacement) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     const txt = emplacement.length > 22 ? emplacement.slice(0, 22) : emplacement;
-    doc.text(txt, W - margin, y, { align: "right" });
+    const xRight = W - margin;
+    doc.text(txt, tx(xRight, y), ty(xRight, y), { angle: ANGLE, align: "right" });
   }
 
-  // Libellé (nettoyé + max 2 lignes) sur toute la largeur
+  // Libellé (nettoyé + max 2 lignes)
   y += 3.6;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   const cleaned = cleanLabel(product.label || "");
   const labelLines = doc.splitTextToSize(cleaned, contentW);
-  const lines = labelLines.slice(0, 2);
-  doc.text(lines, margin, y);
-  y += lines.length * 3.2;
+  const lines = labelLines.slice(0, 2) as string[];
+  lines.forEach((line, i) => {
+    const ly = y + i * 3.2;
+    doc.text(line, tx(margin, ly), ty(margin, ly), { angle: ANGLE });
+  });
 
-  // Prix HT (gauche) et Remisé (droite) sur la même ligne en bas
-  y = H - margin - 2;
+  // Prix HT (gauche) et Remisé (droite) en bas
+  const yBottom = H - margin - 2;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.text(`HT: ${formatPrice(priceHt)}`, margin, y);
+  doc.text(`HT: ${formatPrice(priceHt)}`, tx(margin, yBottom), ty(margin, yBottom), { angle: ANGLE });
 
   if (remisedHt != null) {
-    doc.setFontSize(11);
-    doc.text(`Remisé: ${formatPrice(remisedHt)}`, W - margin, y, { align: "right" });
+    const xRight = W - margin;
+    doc.text(
+      `Remisé: ${formatPrice(remisedHt)}`,
+      tx(xRight, yBottom),
+      ty(xRight, yBottom),
+      { angle: ANGLE, align: "right" }
+    );
   }
 
   return doc.output("blob");
