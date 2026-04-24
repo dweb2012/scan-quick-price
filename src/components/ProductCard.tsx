@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { DolibarrProduct, getPriceHT, fetchProductImageBlob, getSupplierDiscountForProduct, getProductPromos, PromoPrice, updateProductStock, updateProductExtrafields, getWarehouses } from "@/lib/dolibarr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScanLine, Package, Tag, Truck, MapPin, Loader2, RotateCcw, Edit2, Plus, Minus, Save, X, Warehouse } from "lucide-react";
+import { ScanLine, Package, Tag, Truck, MapPin, Loader2, RotateCcw, Edit2, Plus, Minus, Save, X, Warehouse, Printer } from "lucide-react";
 import { toast } from "sonner";
+import { printProductLabel } from "@/lib/labelPdf";
 
 interface ProductCardProps {
   product: DolibarrProduct;
@@ -256,6 +257,18 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const priceHt = getPriceHT(product);
   const [discounted, setDiscounted] = useState<{ price: number; discount: number } | null>(null);
   const [promos, setPromos] = useState<PromoPrice[]>([]);
+  const [printing, setPrinting] = useState(false);
+
+  const handlePrint = async () => {
+    setPrinting(true);
+    try {
+      await printProductLabel(product);
+    } catch (e: any) {
+      toast.error(e?.message || "Erreur génération étiquette");
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   useEffect(() => {
     getSupplierDiscountForProduct(product).then(setDiscounted);
@@ -371,6 +384,17 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
         <StockEditor product={product} />
         <LocationEditor product={product} />
       </div>
+
+      <Button
+        onClick={handlePrint}
+        disabled={printing}
+        variant="secondary"
+        size="lg"
+        className="touch-target text-base font-semibold gap-2 w-full max-w-sm"
+      >
+        {printing ? <Loader2 size={20} className="animate-spin" /> : <Printer size={20} />}
+        Imprimer étiquette (57×32 mm)
+      </Button>
 
       <Button onClick={onScanNext} size="lg" className="touch-target text-base font-semibold gap-2 w-full max-w-sm mt-2">
         <ScanLine size={22} />
