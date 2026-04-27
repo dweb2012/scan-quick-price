@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { ScanLine, Package, Tag, Truck, MapPin, Loader2, RotateCcw, Edit2, Plus, Minus, Save, X, Warehouse, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { printProductLabel } from "@/lib/labelPdf";
-import LabelPreviewDialog from "./LabelPreviewDialog";
 
 interface ProductCardProps {
   product: DolibarrProduct;
@@ -259,13 +258,11 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const [discounted, setDiscounted] = useState<{ price: number; discount: number } | null>(null);
   const [promos, setPromos] = useState<PromoPrice[]>([]);
   const [printing, setPrinting] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
 
   const handlePrint = async () => {
     setPrinting(true);
     try {
       await printProductLabel(product);
-      setPreviewOpen(false);
     } catch (e: any) {
       toast.error(e?.message || "Erreur génération étiquette");
     } finally {
@@ -389,23 +386,15 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
       </div>
 
       <Button
-        onClick={() => setPreviewOpen(true)}
+        onClick={handlePrint}
         disabled={printing}
         variant="secondary"
         size="lg"
         className="touch-target text-base font-semibold gap-2 w-full max-w-sm"
       >
         {printing ? <Loader2 size={20} className="animate-spin" /> : <Printer size={20} />}
-        Aperçu étiquette (57 × 32 mm)
+        Imprimer étiquette (57 × 32 mm)
       </Button>
-
-      <LabelPreviewDialog
-        product={product}
-        open={previewOpen}
-        onOpenChange={setPreviewOpen}
-        onPrint={handlePrint}
-        printing={printing}
-      />
 
       <Button onClick={onScanNext} size="lg" className="touch-target text-base font-semibold gap-2 w-full max-w-sm mt-2">
         <ScanLine size={22} />
