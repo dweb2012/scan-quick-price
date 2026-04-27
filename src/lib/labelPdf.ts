@@ -151,19 +151,28 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
   doc.setTextColor(85, 85, 85); // #555
   doc.text(`Réf: ${product.ref}`, 2, 3);
 
-  // Désignation (tronquée à 35 caractères)
+  // Désignation : 9pt bold, wrap sur 2 lignes max (largeur 53mm)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7);
+  doc.setFontSize(9);
   doc.setTextColor(0, 0, 0);
-  const designation = cleaned.length > 35 ? `${cleaned.slice(0, 34)}…` : cleaned;
-  doc.text(designation, 2, 6.5);
+  const designationLines = (doc.splitTextToSize(cleaned, 53) as string[]).slice(0, 2);
+  // Tronquer la 2e ligne si besoin
+  if (designationLines.length === 2 && doc.getTextWidth(designationLines[1]) > 53) {
+    designationLines[1] = fitText(doc, designationLines[1], 53, 9, 7);
+  }
+  doc.text(designationLines, 2, 7);
 
-  // ========= Zone 2 — Code-barres (gauche, y = 9 à 27mm) =========
+  const isTwoLines = designationLines.length === 2;
+
+  // ========= Zone 2 — Code-barres (gauche) =========
+  // Si désignation sur 2 lignes : y=11mm, hauteur réduite à 12mm
   if (barcodeCanvas) {
+    const bcY = isTwoLines ? 13 : 9;
+    const bcH = isTwoLines ? 12 : 14;
     doc.addImage(
       barcodeCanvas.toDataURL("image/png"),
       "PNG",
-      2, 9, 28, 14,
+      2, bcY, 28, bcH,
       undefined,
       "FAST"
     );
@@ -176,18 +185,18 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
     `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
   if (hasPromo) {
-    // a) Prix normal BARRÉ
+    // a) Prix normal BARRÉ — 10pt gris
     const normalText = `${formatEuro(priceHt)} HT`;
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
+    doc.setFontSize(10);
     doc.setTextColor(136, 136, 136); // #888
     const xNormal = 33;
-    const yNormal = 13;
+    const yNormal = 14;
     doc.text(normalText, xNormal, yNormal);
     const normalW = doc.getTextWidth(normalText);
     doc.setDrawColor(136, 136, 136);
     doc.setLineWidth(0.3);
-    doc.line(xNormal, yNormal - 1, xNormal + normalW, yNormal - 1);
+    doc.line(xNormal, yNormal - 1.2, xNormal + normalW, yNormal - 1.2);
 
     // b) Prix PROMO en gros
     doc.setFont("helvetica", "bold");
