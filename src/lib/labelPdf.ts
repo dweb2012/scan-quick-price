@@ -176,23 +176,27 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
   }
 
   // Format PDF EXACT 57 x 32 mm paysage, sans rescale par le viewer.
+  // Avec jsPDF, on déclare le format brut [hauteur, largeur] puis
+  // l'orientation landscape force une page finale de 57 mm × 32 mm.
   const doc = new jsPDF({
     unit: "mm",
-    format: [LABEL_W, LABEL_H],
     orientation: "landscape",
+    format: [LABEL_H, LABEL_W],
     precision: 4,
     putOnlyUsedFonts: true,
     compress: true,
   });
 
   doc.viewerPreferences({ PrintScaling: "None", PickTrayByPDFSize: true });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
   doc.addImage(
     layoutCanvas.toDataURL("image/png"),
     "PNG",
     0,
     0,
-    LABEL_W,
-    LABEL_H,
+    pageW,
+    pageH,
     undefined,
     "FAST"
   );
