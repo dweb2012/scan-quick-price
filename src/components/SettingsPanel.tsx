@@ -162,8 +162,13 @@ const SettingsPanel = () => {
           Format d'étiquette DYMO (30334 · 57×32)
         </h3>
         <p className="text-xs text-muted-foreground">
-          Le PDF est toujours envoyé à l'imprimante au format natif portrait 32×57 mm
-          pour éviter le découpage en 2 étiquettes. Choisissez le sens de lecture du contenu.
+          Choisissez l'orientation correspondant <strong>exactement</strong> au format
+          papier configuré dans le pilote DYMO. Sinon l'étiquette sera découpée
+          sur 2 vignettes.
+          <br />
+          • Portrait → page 32 × 57 mm
+          <br />
+          • Paysage → page 57 × 32 mm
         </p>
         <div className="grid grid-cols-2 gap-2">
           <Button
