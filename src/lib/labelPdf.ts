@@ -181,7 +181,7 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
 
 export async function printProductLabel(product: DolibarrProduct): Promise<void> {
   const doc = await buildLabelPdfDocument(product);
-  const url = doc.output("bloburl");
+  const url = String(doc.output("bloburl"));
   const win = window.open(url, "_blank");
   if (!win) {
     const a = document.createElement("a");
