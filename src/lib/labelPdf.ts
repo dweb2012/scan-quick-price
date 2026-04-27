@@ -75,16 +75,77 @@ const generateBarcodeCanvas = (value: string): HTMLCanvasElement | null => {
   try {
     const canvas = document.createElement("canvas");
     JsBarcode(canvas, value, {
-      format: "CODE128",
-      width: 2,
-      height: 60,
-      displayValue: false,
+      format: /^\d{13}$/.test(value) ? "EAN13" : "CODE128",
+      width: 1,
+      height: 30,
+      fontSize: 8,
+      displayValue: true,
       margin: 0,
     });
     return canvas;
   } catch {
-    return null;
+    try {
+      const canvas = document.createElement("canvas");
+      JsBarcode(canvas, value, {
+        format: "CODE128",
+        width: 1,
+        height: 30,
+        fontSize: 8,
+        displayValue: true,
+        margin: 0,
+      });
+      return canvas;
+    } catch {
+      return null;
+    }
   }
+};
+
+const fitText = (
+  doc: jsPDF,
+  text: string,
+  maxWidth: number,
+  fontSize: number,
+  minFontSize = 5
+) => {
+  let size = fontSize;
+  doc.setFontSize(size);
+  while (size > minFontSize && doc.getTextWidth(text) > maxWidth) {
+    size -= 0.25;
+    doc.setFontSize(size);
+  }
+  if (doc.getTextWidth(text) <= maxWidth) return text;
+  let out = text;
+  while (out.length > 1 && doc.getTextWidth(`${out}…`) > maxWidth) {
+    out = out.slice(0, -1);
+  }
+  return `${out}…`;
+};
+
+const wrapPdfText = (
+  doc: jsPDF,
+  text: string,
+  maxWidth: number,
+  maxLines: number
+): string[] => {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (doc.getTextWidth(candidate) <= maxWidth) {
+      line = candidate;
+      continue;
+    }
+    if (line) lines.push(line);
+    line = word;
+    if (lines.length === maxLines) break;
+  }
+  if (line && lines.length < maxLines) lines.push(line);
+  if (lines.length === maxLines) {
+    lines[maxLines - 1] = fitText(doc, lines[maxLines - 1], maxWidth, doc.getFontSize());
+  }
+  return lines;
 };
 
 /**
