@@ -24,51 +24,6 @@ export const setLabelOrientation = (_o: LabelOrientation) => {
 // Format physique de l'étiquette DYMO 11354 / 30334 : 57 x 32 mm (paysage).
 const LABEL_W = 57;
 const LABEL_H = 32;
-const PX_PER_MM = 24;
-const PT_TO_MM = 0.352777778;
-
-const setCanvasFont = (
-  ctx: CanvasRenderingContext2D,
-  pt: number,
-  weight: "normal" | "bold" = "normal"
-) => {
-  ctx.font = `${weight} ${pt * PT_TO_MM}px Arial, Helvetica, sans-serif`;
-};
-
-const ellipsize = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number) => {
-  if (ctx.measureText(text).width <= maxWidth) return text;
-  let out = text;
-  while (out.length > 1 && ctx.measureText(`${out}…`).width > maxWidth) {
-    out = out.slice(0, -1);
-  }
-  return `${out}…`;
-};
-
-const wrapText = (
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number,
-  maxLines: number
-): string[] => {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let line = "";
-  for (const word of words) {
-    const candidate = line ? `${line} ${word}` : word;
-    if (ctx.measureText(candidate).width <= maxWidth) {
-      line = candidate;
-      continue;
-    }
-    if (line) lines.push(line);
-    line = word;
-    if (lines.length === maxLines) break;
-  }
-  if (line && lines.length < maxLines) lines.push(line);
-  if (lines.length === maxLines) {
-    lines[maxLines - 1] = ellipsize(ctx, lines[maxLines - 1], maxWidth);
-  }
-  return lines;
-};
 
 const generateBarcodeCanvas = (value: string): HTMLCanvasElement | null => {
   if (!value) return null;
