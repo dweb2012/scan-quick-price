@@ -16,6 +16,10 @@ const cleanLabel = (label: string): string => {
 export type LabelOrientation = "portrait" | "landscape";
 
 const ORIENTATION_KEY = "labelOrientation";
+const PHYSICAL_LABEL_W = 32;
+const PHYSICAL_LABEL_H = 57;
+const PX_PER_MM = 18;
+const PT_TO_MM = 0.352777778;
 
 export const getLabelOrientation = (): LabelOrientation => {
   const v = localStorage.getItem(ORIENTATION_KEY);
@@ -26,7 +30,45 @@ export const setLabelOrientation = (o: LabelOrientation) => {
   localStorage.setItem(ORIENTATION_KEY, o);
 };
 
-const generateBarcodeDataUrl = (value: string, width: number, height: number): string | null => {
+const setCanvasFont = (ctx: CanvasRenderingContext2D, pt: number, weight: "normal" | "bold" = "normal") => {
+  ctx.font = `${weight} ${pt * PT_TO_MM}px Arial, Helvetica, sans-serif`;
+};
+
+const ellipsize = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number) => {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let out = text;
+  while (out.length > 1 && ctx.measureText(`${out}…`).width > maxWidth) {
+    out = out.slice(0, -1);
+  }
+  return `${out}…`;
+};
+
+const wrapText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number): string[] => {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = "";
+
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (ctx.measureText(candidate).width <= maxWidth) {
+      line = candidate;
+      continue;
+    }
+
+    if (line) lines.push(line);
+    line = word;
+    if (lines.length === maxLines) break;
+  }
+
+  if (line && lines.length < maxLines) lines.push(line);
+  if (lines.length === maxLines) {
+    lines[maxLines - 1] = ellipsize(ctx, lines[maxLines - 1], maxWidth);
+  }
+
+  return lines;
+};
+
+const generateBarcodeCanvas = (value: string): HTMLCanvasElement | null => {
   if (!value) return null;
   try {
     const canvas = document.createElement("canvas");
@@ -37,11 +79,23 @@ const generateBarcodeDataUrl = (value: string, width: number, height: number): s
       displayValue: false,
       margin: 0,
     });
-    // Resize via target canvas to fit pdf area (jsPDF will scale anyway with width/height args)
-    return canvas.toDataURL("image/png");
+    return canvas;
   } catch {
     return null;
   }
+};
+
+const rotateLandscapeCanvasToPortraitMedia = (canvas: HTMLCanvasElement) => {
+  const out = document.createElement("canvas");
+  out.width = PHYSICAL_LABEL_W * PX_PER_MM;
+  out.height = PHYSICAL_LABEL_H * PX_PER_MM;
+  const ctx = out.getContext("2d")!;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.translate(out.width, 0);
+  ctx.rotate(Math.PI / 2);
+  ctx.drawImage(canvas, 0, 0);
+  return out;
 };
 
 /**
