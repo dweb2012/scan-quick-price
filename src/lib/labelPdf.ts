@@ -174,93 +174,50 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
   const emplacement = opts.options_emplacement || "";
   const cleaned = cleanLabel(product.label || "");
 
-  const W = LABEL_W;
-  const H = LABEL_H;
-
-  const layoutCanvas = document.createElement("canvas");
-  layoutCanvas.width = W * PX_PER_MM;
-  layoutCanvas.height = H * PX_PER_MM;
-  const ctx = layoutCanvas.getContext("2d")!;
-  ctx.scale(PX_PER_MM, PX_PER_MM);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = "#000000";
-  ctx.textBaseline = "alphabetic";
-
-  const margin = 1.2;
-  const contentW = W - margin * 2;
-
-  // ---- Ligne 1 : Réf (gauche) + libellé (droite, sur 2 lignes max) ----
-  let y = margin + 2.6;
-  ctx.textAlign = "left";
-  setCanvasFont(ctx, 8, "bold");
-  const refText = `Réf: ${product.ref}`;
-  const refW = Math.min(ctx.measureText(refText).width + 1.2, contentW * 0.45);
-  ctx.fillText(ellipsize(ctx, refText, refW), margin, y);
-
-  // Libellé à droite de la réf, peut passer sur 2 lignes
-  setCanvasFont(ctx, 7.5);
-  const labelX = margin + refW + 1;
-  const labelMaxW = W - margin - labelX;
-  const labelLines = wrapText(ctx, cleaned, labelMaxW, 2);
-  labelLines.forEach((line, i) => {
-    ctx.fillText(line, labelX, y + i * 2.8);
-  });
-
-  // ---- Ligne 2 : Code-barres centré ----
-  const bcY = margin + 6;
-  const bcH = 13;
-  const barcodeValue = product.barcode || product.ref;
-  const barcodeCanvas = generateBarcodeCanvas(barcodeValue);
-  if (barcodeCanvas) {
-    ctx.drawImage(barcodeCanvas, margin, bcY, contentW, bcH);
-    setCanvasFont(ctx, 5);
-    ctx.textAlign = "center";
-    ctx.fillText(
-      ellipsize(ctx, barcodeValue, contentW),
-      W / 2,
-      bcY + bcH + 2.2
-    );
-  }
-
-  // ---- Ligne 3 : Prix HT (gauche) + Promo HT (droite) ----
-  const yPrice = H - margin - 0.6;
-  setCanvasFont(ctx, 9, "bold");
-  ctx.fillStyle = "#000000";
-  ctx.textAlign = "left";
-  ctx.fillText(`HT: ${formatPrice(priceHt)}`, margin, yPrice);
-
-  if (remisedHt != null) {
-    ctx.fillStyle = "#b41e1e";
-    ctx.textAlign = "right";
-    ctx.fillText(`Promo HT: ${formatPrice(remisedHt)}`, W - margin, yPrice);
-  }
-
-  // Format PDF EXACT 57 x 32 mm paysage, sans rescale par le viewer.
-  // Avec jsPDF, on déclare le format brut [hauteur, largeur] puis
-  // l'orientation landscape force une page finale de 57 mm × 32 mm.
+  // Format PDF EXACT 57 x 32 mm paysage, sans rotation du contenu.
   const doc = new jsPDF({
-    unit: "mm",
     orientation: "landscape",
+    unit: "mm",
     format: [LABEL_H, LABEL_W],
-    precision: 4,
-    putOnlyUsedFonts: true,
     compress: true,
+    putOnlyUsedFonts: true,
+    precision: 4,
   });
 
   doc.viewerPreferences({ PrintScaling: "None", PickTrayByPDFSize: true });
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  doc.addImage(
-    layoutCanvas.toDataURL("image/png"),
-    "PNG",
-    0,
-    0,
-    pageW,
-    pageH,
-    undefined,
-    "FAST"
-  );
+
+  const margin = 2;
+  const contentW = LABEL_W - margin * 2;
+  const barcodeValue = product.barcode || product.ref;
+  const barcodeCanvas = generateBarcodeCanvas(barcodeValue);
+
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, LABEL_W, LABEL_H, "F");
+  doc.setTextColor(0, 0, 0);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.text(fitText(doc, `Réf: ${product.ref}`, contentW, 8), margin, 4);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.7);
+  const labelLines = wrapPdfText(doc, cleaned, contentW, 2);
+  labelLines.forEach((line, index) => {
+    doc.text(line, margin, 8 + index * 3.2);
+  });
+
+  if (barcodeCanvas) {
+    doc.addImage(barcodeCanvas.toDataURL("image/png"), "PNG", 2, 12, 30, 14, undefined, "FAST");
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(0, 0, 0);
+  doc.text(fitText(doc, `HT: ${formatPrice(priceHt)}`, 19, 8), 36, 18);
+
+  if (remisedHt != null) {
+    doc.setTextColor(180, 30, 30);
+    doc.text(fitText(doc, `Promo HT: ${formatPrice(remisedHt)}`, 19, 8), 36, 26);
+  }
 
   return doc.output("blob");
 }
