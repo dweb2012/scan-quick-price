@@ -13,24 +13,25 @@ const cleanLabel = (label: string): string => {
   return out.trim();
 };
 
+// API conservée pour compat ; l'orientation est désormais figée en paysage.
 export type LabelOrientation = "portrait" | "landscape";
-
 const ORIENTATION_KEY = "labelOrientation";
-const PHYSICAL_LABEL_W = 32;
-const PHYSICAL_LABEL_H = 57;
-const PX_PER_MM = 18;
+export const getLabelOrientation = (): LabelOrientation => "landscape";
+export const setLabelOrientation = (_o: LabelOrientation) => {
+  localStorage.setItem(ORIENTATION_KEY, "landscape");
+};
+
+// Format physique de l'étiquette DYMO 11354 / 30334 : 57 x 32 mm (paysage).
+const LABEL_W = 57;
+const LABEL_H = 32;
+const PX_PER_MM = 24;
 const PT_TO_MM = 0.352777778;
 
-export const getLabelOrientation = (): LabelOrientation => {
-  const v = localStorage.getItem(ORIENTATION_KEY);
-  return v === "landscape" ? "landscape" : "portrait";
-};
-
-export const setLabelOrientation = (o: LabelOrientation) => {
-  localStorage.setItem(ORIENTATION_KEY, o);
-};
-
-const setCanvasFont = (ctx: CanvasRenderingContext2D, pt: number, weight: "normal" | "bold" = "normal") => {
+const setCanvasFont = (
+  ctx: CanvasRenderingContext2D,
+  pt: number,
+  weight: "normal" | "bold" = "normal"
+) => {
   ctx.font = `${weight} ${pt * PT_TO_MM}px Arial, Helvetica, sans-serif`;
 };
 
@@ -43,28 +44,29 @@ const ellipsize = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number
   return `${out}…`;
 };
 
-const wrapText = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number): string[] => {
+const wrapText = (
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxLines: number
+): string[] => {
   const words = text.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let line = "";
-
   for (const word of words) {
     const candidate = line ? `${line} ${word}` : word;
     if (ctx.measureText(candidate).width <= maxWidth) {
       line = candidate;
       continue;
     }
-
     if (line) lines.push(line);
     line = word;
     if (lines.length === maxLines) break;
   }
-
   if (line && lines.length < maxLines) lines.push(line);
   if (lines.length === maxLines) {
     lines[maxLines - 1] = ellipsize(ctx, lines[maxLines - 1], maxWidth);
   }
-
   return lines;
 };
 
@@ -86,19 +88,11 @@ const generateBarcodeCanvas = (value: string): HTMLCanvasElement | null => {
 };
 
 /**
- * Génère une étiquette DYMO 30334 (57×32 mm).
- *
- * La taille du PDF doit correspondre EXACTEMENT au format papier configuré
- * dans le pilote DYMO, sinon la page est répartie sur deux étiquettes.
- *
- *  - "portrait"  → page PDF 32 × 57 mm (étiquette debout)
- *  - "landscape" → page PDF 57 × 32 mm (étiquette couchée)
- *
- * Le contenu est dessiné droit dans la page (pas de rotation interne).
+ * Génère une étiquette DYMO 11354 / 30334 au format EXACT 57 × 32 mm paysage.
+ * Layout horizontal : bloc gauche (Réf + libellé + emplacement + prix),
+ * code-barres collé à droite.
  */
 export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> {
-  const orientation = getLabelOrientation();
-
   const [discounted, promos] = await Promise.all([
     getSupplierDiscountForProduct(product),
     getProductPromos(product.id),
@@ -119,12 +113,8 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
   const emplacement = opts.options_emplacement || "";
   const cleaned = cleanLabel(product.label || "");
 
-  // La page PDF correspond EXACTEMENT au format papier choisi.
-  // - portrait  : 32 × 57 mm
-  // - landscape : 57 × 32 mm (page native, sans rotation d'image)
-  const isLandscape = orientation === "landscape";
-  const W = isLandscape ? PHYSICAL_LABEL_H : PHYSICAL_LABEL_W;
-  const H = isLandscape ? PHYSICAL_LABEL_W : PHYSICAL_LABEL_H;
+  const W = LABEL_W;
+  const H = LABEL_H;
 
   const layoutCanvas = document.createElement("canvas");
   layoutCanvas.width = W * PX_PER_MM;
@@ -136,71 +126,72 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
   ctx.fillStyle = "#000000";
   ctx.textBaseline = "alphabetic";
 
-  const margin = 1.5;
-  const contentW = W - margin * 2;
+  const margin = 1.2;
 
-  // Layouts adaptés à chaque format : on calcule des tailles relatives.
-  const refSize = isLandscape ? 9 : 7.5;
-  const empSize = isLandscape ? 8 : 6.5;
-  const labelSize = isLandscape ? 8.5 : 7;
-  const labelLineH = isLandscape ? 3.4 : 2.8;
-  const bcH = isLandscape ? 9 : 7;
-  const priceSize = isLandscape ? (remisedHt != null ? 9 : 11) : (remisedHt != null ? 7.5 : 9);
-  const empMaxChars = isLandscape ? 22 : 14;
+  // Découpe horizontale : ~62% texte à gauche, ~38% code-barres à droite.
+  const leftW = 34;
+  const rightX = leftW + 0.6;
+  const rightW = W - rightX - margin;
 
-  let y = margin + (isLandscape ? 2.6 : 2.2);
-
-  // Réf (haut-gauche)
-  setCanvasFont(ctx, refSize, "bold");
+  // ---- Colonne gauche ----
+  let y = margin + 2.8;
   ctx.textAlign = "left";
-  ctx.fillText(ellipsize(ctx, `Réf: ${product.ref}`, contentW * 0.58), margin, y);
 
-  // Emplacement (haut-droite)
+  // Réf (bold)
+  setCanvasFont(ctx, 8.5, "bold");
+  ctx.fillText(ellipsize(ctx, `Réf: ${product.ref}`, leftW - margin), margin, y);
+
+  // Libellé (max 2 lignes, 8pt)
+  y += 3.2;
+  setCanvasFont(ctx, 7.5);
+  const labelLines = wrapText(ctx, cleaned, leftW - margin, 2);
+  labelLines.forEach((line, i) => {
+    ctx.fillText(line, margin, y + i * 2.9);
+  });
+  y += labelLines.length * 2.9;
+
+  // Emplacement
   if (emplacement) {
-    setCanvasFont(ctx, empSize);
-    ctx.textAlign = "right";
-    const txt = emplacement.length > empMaxChars ? emplacement.slice(0, empMaxChars) : emplacement;
-    ctx.fillText(ellipsize(ctx, txt, contentW * 0.38), W - margin, y);
+    y += 2.6;
+    setCanvasFont(ctx, 6.5);
+    ctx.fillText(ellipsize(ctx, `📍 ${emplacement}`, leftW - margin), margin, y);
   }
 
-  // Libellé (max 2 lignes)
-  y += isLandscape ? 3.8 : 3.2;
-  setCanvasFont(ctx, labelSize);
+  // Prix en bas du bloc gauche
+  const yPrice = H - margin - 1;
+  setCanvasFont(ctx, remisedHt != null ? 8 : 10, "bold");
+  ctx.fillStyle = "#000000";
   ctx.textAlign = "left";
-  const labelLines = wrapText(ctx, cleaned, contentW, 2);
-  labelLines.forEach((line, i) => {
-    ctx.fillText(line, margin, y + i * labelLineH);
-  });
-  y += labelLines.length * labelLineH + 1;
+  ctx.fillText(`HT ${formatPrice(priceHt)}`, margin, yPrice);
 
-  // Code-barres (centre)
+  if (remisedHt != null) {
+    setCanvasFont(ctx, 8, "bold");
+    ctx.fillStyle = "#b41e1e";
+    ctx.fillText(`Promo ${formatPrice(remisedHt)}`, margin, yPrice - 3.4);
+  }
+
+  // ---- Colonne droite : code-barres ----
+  ctx.fillStyle = "#000000";
   const barcodeValue = product.barcode || product.ref;
   const barcodeCanvas = generateBarcodeCanvas(barcodeValue);
   if (barcodeCanvas) {
-    ctx.drawImage(barcodeCanvas, margin, y, contentW, bcH);
-    y += bcH + 0.6;
+    const bcH = 14; // hauteur max 14 mm comme demandé
+    const bcY = margin + 1;
+    ctx.drawImage(barcodeCanvas, rightX, bcY, rightW, bcH);
     setCanvasFont(ctx, 5.5);
     ctx.textAlign = "center";
-    ctx.fillText(ellipsize(ctx, barcodeValue, contentW), W / 2, y);
+    ctx.fillText(
+      ellipsize(ctx, barcodeValue, rightW),
+      rightX + rightW / 2,
+      bcY + bcH + 2.4
+    );
   }
 
-  // Prix HT (gauche) et promo HT (droite) en bas
-  const yBottom = H - margin - 0.8;
-  setCanvasFont(ctx, priceSize, "bold");
-  ctx.textAlign = "left";
-  ctx.fillStyle = "#000000";
-  ctx.fillText(`HT: ${formatPrice(priceHt)}`, margin, yBottom);
-
-  if (remisedHt != null) {
-    ctx.fillStyle = "#b41e1e";
-    ctx.textAlign = "right";
-    ctx.fillText(`Promo HT: ${formatPrice(remisedHt)}`, W - margin, yBottom);
-  }
-
+  // Format PDF EXACT 57 x 32 mm paysage, sans rescale par le viewer.
   const doc = new jsPDF({
     unit: "mm",
-    format: [W, H],
-    orientation: isLandscape ? "landscape" : "portrait",
+    format: [LABEL_W, LABEL_H],
+    orientation: "landscape",
     precision: 4,
     putOnlyUsedFonts: true,
     compress: true,
@@ -212,8 +203,8 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
     "PNG",
     0,
     0,
-    W,
-    H,
+    LABEL_W,
+    LABEL_H,
     undefined,
     "FAST"
   );
