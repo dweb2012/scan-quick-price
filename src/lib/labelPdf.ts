@@ -31,11 +31,12 @@ const generateBarcodeCanvas = (value: string): HTMLCanvasElement | null => {
     const canvas = document.createElement("canvas");
     JsBarcode(canvas, value, {
       format: /^\d{13}$/.test(value) ? "EAN13" : "CODE128",
-      width: 1,
-      height: 30,
-      fontSize: 8,
+      width: 1.2,
+      height: 35,
+      fontSize: 10,
       displayValue: true,
       margin: 0,
+      textMargin: 1,
     });
     return canvas;
   } catch {
@@ -43,11 +44,12 @@ const generateBarcodeCanvas = (value: string): HTMLCanvasElement | null => {
       const canvas = document.createElement("canvas");
       JsBarcode(canvas, value, {
         format: "CODE128",
-        width: 1,
-        height: 30,
-        fontSize: 8,
+        width: 1.2,
+        height: 35,
+        fontSize: 10,
         displayValue: true,
         margin: 0,
+        textMargin: 1,
       });
       return canvas;
     } catch {
@@ -136,37 +138,89 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
 
   doc.viewerPreferences({ PrintScaling: "None", PickTrayByPDFSize: true });
 
-  const margin = 2;
-  const contentW = LABEL_W - margin * 2;
   const barcodeValue = product.barcode || product.ref;
   const barcodeCanvas = generateBarcodeCanvas(barcodeValue);
 
   doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, LABEL_W, LABEL_H, "F");
-  doc.setTextColor(0, 0, 0);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  doc.text(fitText(doc, `Réf: ${product.ref}`, contentW, 8), margin, 4);
 
+  // ========= Zone 1 — En-tête (y = 0 à 8mm) =========
+  // Réf
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.7);
-  const labelLines = wrapPdfText(doc, cleaned, contentW, 2);
-  labelLines.forEach((line, index) => {
-    doc.text(line, margin, 8 + index * 3.2);
-  });
+  doc.setFontSize(6);
+  doc.setTextColor(85, 85, 85); // #555
+  doc.text(`Réf: ${product.ref}`, 2, 3);
 
+  // Désignation (tronquée à 35 caractères)
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7);
+  doc.setTextColor(0, 0, 0);
+  const designation = cleaned.length > 35 ? `${cleaned.slice(0, 34)}…` : cleaned;
+  doc.text(designation, 2, 6.5);
+
+  // ========= Zone 2 — Code-barres (gauche, y = 9 à 27mm) =========
   if (barcodeCanvas) {
-    doc.addImage(barcodeCanvas.toDataURL("image/png"), "PNG", 2, 12, 30, 14, undefined, "FAST");
+    doc.addImage(
+      barcodeCanvas.toDataURL("image/png"),
+      "PNG",
+      2, 9, 28, 14,
+      undefined,
+      "FAST"
+    );
   }
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  doc.setTextColor(0, 0, 0);
-  doc.text(fitText(doc, `HT: ${formatPrice(priceHt)}`, 19, 8), 36, 18);
+  // ========= Zone 3 — Prix (droite) =========
+  const hasPromo = remisedHt != null && remisedHt < priceHt;
 
-  if (remisedHt != null) {
-    doc.setTextColor(180, 30, 30);
-    doc.text(fitText(doc, `Promo HT: ${formatPrice(remisedHt)}`, 19, 8), 36, 26);
+  const formatEuro = (n: number) =>
+    `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+
+  if (hasPromo) {
+    // a) Prix normal BARRÉ
+    const normalText = `${formatEuro(priceHt)} HT`;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(136, 136, 136); // #888
+    const xNormal = 33;
+    const yNormal = 13;
+    doc.text(normalText, xNormal, yNormal);
+    const normalW = doc.getTextWidth(normalText);
+    doc.setDrawColor(136, 136, 136);
+    doc.setLineWidth(0.3);
+    doc.line(xNormal, yNormal - 1, xNormal + normalW, yNormal - 1);
+
+    // b) Prix PROMO en gros
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(0, 0, 0);
+    const promoText = formatEuro(remisedHt!);
+    doc.text(promoText, 33, 22);
+    const promoW = doc.getTextWidth(promoText);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text(" HT", 33 + promoW, 22);
+
+    // c) Badge -%
+    const pct = Math.round((1 - remisedHt! / priceHt) * 100);
+    if (pct > 0) {
+      doc.setFillColor(0, 0, 0);
+      doc.rect(42, 26, 12, 4, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.text(`-${pct}%`, 48, 29, { align: "center" });
+    }
+  } else {
+    // Pas de promo : prix normal en gros
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(0, 0, 0);
+    const normalText = formatEuro(priceHt);
+    doc.text(normalText, 33, 20);
+    const w = doc.getTextWidth(normalText);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text(" HT", 33 + w, 20);
   }
 
   doc.autoPrint();
