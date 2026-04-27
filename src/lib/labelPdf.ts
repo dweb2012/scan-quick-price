@@ -24,28 +24,61 @@ export const setLabelOrientation = (_o: LabelOrientation) => {
 // Format physique de l'étiquette DYMO 11354 / 30334 : 57 x 32 mm (paysage).
 const LABEL_W = 57;
 const LABEL_H = 32;
-const PX_PER_MM = 24;
-const PT_TO_MM = 0.352777778;
 
-const setCanvasFont = (
-  ctx: CanvasRenderingContext2D,
-  pt: number,
-  weight: "normal" | "bold" = "normal"
-) => {
-  ctx.font = `${weight} ${pt * PT_TO_MM}px Arial, Helvetica, sans-serif`;
+const generateBarcodeCanvas = (value: string): HTMLCanvasElement | null => {
+  if (!value) return null;
+  try {
+    const canvas = document.createElement("canvas");
+    JsBarcode(canvas, value, {
+      format: /^\d{13}$/.test(value) ? "EAN13" : "CODE128",
+      width: 1,
+      height: 30,
+      fontSize: 8,
+      displayValue: true,
+      margin: 0,
+    });
+    return canvas;
+  } catch {
+    try {
+      const canvas = document.createElement("canvas");
+      JsBarcode(canvas, value, {
+        format: "CODE128",
+        width: 1,
+        height: 30,
+        fontSize: 8,
+        displayValue: true,
+        margin: 0,
+      });
+      return canvas;
+    } catch {
+      return null;
+    }
+  }
 };
 
-const ellipsize = (ctx: CanvasRenderingContext2D, text: string, maxWidth: number) => {
-  if (ctx.measureText(text).width <= maxWidth) return text;
+const fitText = (
+  doc: jsPDF,
+  text: string,
+  maxWidth: number,
+  fontSize: number,
+  minFontSize = 5
+) => {
+  let size = fontSize;
+  doc.setFontSize(size);
+  while (size > minFontSize && doc.getTextWidth(text) > maxWidth) {
+    size -= 0.25;
+    doc.setFontSize(size);
+  }
+  if (doc.getTextWidth(text) <= maxWidth) return text;
   let out = text;
-  while (out.length > 1 && ctx.measureText(`${out}…`).width > maxWidth) {
+  while (out.length > 1 && doc.getTextWidth(`${out}…`) > maxWidth) {
     out = out.slice(0, -1);
   }
   return `${out}…`;
 };
 
-const wrapText = (
-  ctx: CanvasRenderingContext2D,
+const wrapPdfText = (
+  doc: jsPDF,
   text: string,
   maxWidth: number,
   maxLines: number
@@ -55,7 +88,7 @@ const wrapText = (
   let line = "";
   for (const word of words) {
     const candidate = line ? `${line} ${word}` : word;
-    if (ctx.measureText(candidate).width <= maxWidth) {
+    if (doc.getTextWidth(candidate) <= maxWidth) {
       line = candidate;
       continue;
     }
@@ -65,34 +98,16 @@ const wrapText = (
   }
   if (line && lines.length < maxLines) lines.push(line);
   if (lines.length === maxLines) {
-    lines[maxLines - 1] = ellipsize(ctx, lines[maxLines - 1], maxWidth);
+    lines[maxLines - 1] = fitText(doc, lines[maxLines - 1], maxWidth, doc.getFontSize());
   }
   return lines;
 };
 
-const generateBarcodeCanvas = (value: string): HTMLCanvasElement | null => {
-  if (!value) return null;
-  try {
-    const canvas = document.createElement("canvas");
-    JsBarcode(canvas, value, {
-      format: "CODE128",
-      width: 2,
-      height: 60,
-      displayValue: false,
-      margin: 0,
-    });
-    return canvas;
-  } catch {
-    return null;
-  }
-};
-
 /**
  * Génère une étiquette DYMO 11354 / 30334 au format EXACT 57 × 32 mm paysage.
- * Layout horizontal : bloc gauche (Réf + libellé + emplacement + prix),
- * code-barres collé à droite.
+ * Layout 57 × 32 mm : textes en haut, code-barres à gauche, prix à droite.
  */
-export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> {
+const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> => {
   const [discounted, promos] = await Promise.all([
     getSupplierDiscountForProduct(product),
     getProductPromos(product.id),
@@ -109,104 +124,64 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
       ? promoBest
       : discounted?.price ?? null;
 
-  const opts = product.array_options || {};
-  const emplacement = opts.options_emplacement || "";
   const cleaned = cleanLabel(product.label || "");
 
-  const W = LABEL_W;
-  const H = LABEL_H;
-
-  const layoutCanvas = document.createElement("canvas");
-  layoutCanvas.width = W * PX_PER_MM;
-  layoutCanvas.height = H * PX_PER_MM;
-  const ctx = layoutCanvas.getContext("2d")!;
-  ctx.scale(PX_PER_MM, PX_PER_MM);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = "#000000";
-  ctx.textBaseline = "alphabetic";
-
-  const margin = 1.2;
-  const contentW = W - margin * 2;
-
-  // ---- Ligne 1 : Réf (gauche) + libellé (droite, sur 2 lignes max) ----
-  let y = margin + 2.6;
-  ctx.textAlign = "left";
-  setCanvasFont(ctx, 8, "bold");
-  const refText = `Réf: ${product.ref}`;
-  const refW = Math.min(ctx.measureText(refText).width + 1.2, contentW * 0.45);
-  ctx.fillText(ellipsize(ctx, refText, refW), margin, y);
-
-  // Libellé à droite de la réf, peut passer sur 2 lignes
-  setCanvasFont(ctx, 7.5);
-  const labelX = margin + refW + 1;
-  const labelMaxW = W - margin - labelX;
-  const labelLines = wrapText(ctx, cleaned, labelMaxW, 2);
-  labelLines.forEach((line, i) => {
-    ctx.fillText(line, labelX, y + i * 2.8);
-  });
-
-  // ---- Ligne 2 : Code-barres centré ----
-  const bcY = margin + 6;
-  const bcH = 13;
-  const barcodeValue = product.barcode || product.ref;
-  const barcodeCanvas = generateBarcodeCanvas(barcodeValue);
-  if (barcodeCanvas) {
-    ctx.drawImage(barcodeCanvas, margin, bcY, contentW, bcH);
-    setCanvasFont(ctx, 5);
-    ctx.textAlign = "center";
-    ctx.fillText(
-      ellipsize(ctx, barcodeValue, contentW),
-      W / 2,
-      bcY + bcH + 2.2
-    );
-  }
-
-  // ---- Ligne 3 : Prix HT (gauche) + Promo HT (droite) ----
-  const yPrice = H - margin - 0.6;
-  setCanvasFont(ctx, 9, "bold");
-  ctx.fillStyle = "#000000";
-  ctx.textAlign = "left";
-  ctx.fillText(`HT: ${formatPrice(priceHt)}`, margin, yPrice);
-
-  if (remisedHt != null) {
-    ctx.fillStyle = "#b41e1e";
-    ctx.textAlign = "right";
-    ctx.fillText(`Promo HT: ${formatPrice(remisedHt)}`, W - margin, yPrice);
-  }
-
-  // Format PDF EXACT 57 x 32 mm paysage, sans rescale par le viewer.
-  // Avec jsPDF, on déclare le format brut [hauteur, largeur] puis
-  // l'orientation landscape force une page finale de 57 mm × 32 mm.
+  // Format PDF EXACT 57 x 32 mm paysage, sans rotation du contenu.
   const doc = new jsPDF({
-    unit: "mm",
-    orientation: "landscape",
-    format: [LABEL_H, LABEL_W],
-    precision: 4,
-    putOnlyUsedFonts: true,
+    orientation: 'landscape',
+    unit: 'mm',
+    format: [32, 57],
     compress: true,
+    putOnlyUsedFonts: true
   });
 
   doc.viewerPreferences({ PrintScaling: "None", PickTrayByPDFSize: true });
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  doc.addImage(
-    layoutCanvas.toDataURL("image/png"),
-    "PNG",
-    0,
-    0,
-    pageW,
-    pageH,
-    undefined,
-    "FAST"
-  );
 
+  const margin = 2;
+  const contentW = LABEL_W - margin * 2;
+  const barcodeValue = product.barcode || product.ref;
+  const barcodeCanvas = generateBarcodeCanvas(barcodeValue);
+
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, LABEL_W, LABEL_H, "F");
+  doc.setTextColor(0, 0, 0);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.text(fitText(doc, `Réf: ${product.ref}`, contentW, 8), margin, 4);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.7);
+  const labelLines = wrapPdfText(doc, cleaned, contentW, 2);
+  labelLines.forEach((line, index) => {
+    doc.text(line, margin, 8 + index * 3.2);
+  });
+
+  if (barcodeCanvas) {
+    doc.addImage(barcodeCanvas.toDataURL("image/png"), "PNG", 2, 12, 30, 14, undefined, "FAST");
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(0, 0, 0);
+  doc.text(fitText(doc, `HT: ${formatPrice(priceHt)}`, 19, 8), 36, 18);
+
+  if (remisedHt != null) {
+    doc.setTextColor(180, 30, 30);
+    doc.text(fitText(doc, `Promo HT: ${formatPrice(remisedHt)}`, 19, 8), 36, 26);
+  }
+
+  doc.autoPrint();
+  return doc;
+};
+
+export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> {
+  const doc = await buildLabelPdfDocument(product);
   return doc.output("blob");
 }
 
 export async function printProductLabel(product: DolibarrProduct): Promise<void> {
-  const blob = await generateLabelPdf(product);
-  const url = URL.createObjectURL(blob);
+  const doc = await buildLabelPdfDocument(product);
+  const url = String(doc.output("bloburl"));
   const win = window.open(url, "_blank");
   if (!win) {
     const a = document.createElement("a");
