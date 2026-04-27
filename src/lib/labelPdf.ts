@@ -131,8 +131,7 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
     orientation: 'landscape',
     unit: 'mm',
     format: [32, 57],
-    compress: true,
-    putOnlyUsedFonts: true
+    compress: true
   });
 
   doc.viewerPreferences({ PrintScaling: "None", PickTrayByPDFSize: true });
