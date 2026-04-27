@@ -85,19 +85,6 @@ const generateBarcodeCanvas = (value: string): HTMLCanvasElement | null => {
   }
 };
 
-const rotateLandscapeCanvasToPortraitMedia = (canvas: HTMLCanvasElement) => {
-  const out = document.createElement("canvas");
-  out.width = PHYSICAL_LABEL_W * PX_PER_MM;
-  out.height = PHYSICAL_LABEL_H * PX_PER_MM;
-  const ctx = out.getContext("2d")!;
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, out.width, out.height);
-  ctx.translate(out.width, 0);
-  ctx.rotate(Math.PI / 2);
-  ctx.drawImage(canvas, 0, 0);
-  return out;
-};
-
 /**
  * Génère une étiquette DYMO 30334 (57×32 mm).
  *
@@ -132,10 +119,9 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
   const emplacement = opts.options_emplacement || "";
   const cleaned = cleanLabel(product.label || "");
 
-  // La DYMO détecte le papier comme 32 × 57 mm LW. On garde donc TOUJOURS
-  // cette taille physique côté PDF pour éviter que Windows/Chrome répartisse
-  // le document sur 2 étiquettes. Le mode paysage est rendu en image tournée
-  // dans cette même page physique, sans demander de réglage au pilote.
+  // La page PDF correspond EXACTEMENT au format papier choisi.
+  // - portrait  : 32 × 57 mm
+  // - landscape : 57 × 32 mm (page native, sans rotation d'image)
   const isLandscape = orientation === "landscape";
   const W = isLandscape ? PHYSICAL_LABEL_H : PHYSICAL_LABEL_W;
   const H = isLandscape ? PHYSICAL_LABEL_W : PHYSICAL_LABEL_H;
@@ -211,11 +197,10 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
     ctx.fillText(`Promo HT: ${formatPrice(remisedHt)}`, W - margin, yBottom);
   }
 
-  const printCanvas = isLandscape ? rotateLandscapeCanvasToPortraitMedia(layoutCanvas) : layoutCanvas;
   const doc = new jsPDF({
     unit: "mm",
-    format: [PHYSICAL_LABEL_W, PHYSICAL_LABEL_H],
-    orientation: "portrait",
+    format: [W, H],
+    orientation: isLandscape ? "landscape" : "portrait",
     precision: 4,
     putOnlyUsedFonts: true,
     compress: true,
@@ -223,12 +208,12 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
 
   doc.viewerPreferences({ PrintScaling: "None", PickTrayByPDFSize: true });
   doc.addImage(
-    printCanvas.toDataURL("image/png"),
+    layoutCanvas.toDataURL("image/png"),
     "PNG",
     0,
     0,
-    PHYSICAL_LABEL_W,
-    PHYSICAL_LABEL_H,
+    W,
+    H,
     undefined,
     "FAST"
   );
