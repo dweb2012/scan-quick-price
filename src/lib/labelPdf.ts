@@ -1,31 +1,62 @@
 import jsPDF from "jspdf";
+import JsBarcode from "jsbarcode";
 import { DolibarrProduct, getPriceHT, getSupplierDiscountForProduct, getProductPromos } from "./dolibarr";
 
 const formatPrice = (n: number) =>
   n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 
-/**
- * Clean a product label by removing inventory/batch prefixes such as
- * "14/03 BMY HEN" (date DD/MM optionally followed by uppercase tokens).
- */
 const cleanLabel = (label: string): string => {
   if (!label) return "";
   let out = label;
-  // Remove leading "DD/MM" or "DD/MM/YY(YY)" + following uppercase tokens (BMY HEN…)
   out = out.replace(/^\s*\d{1,2}\/\d{1,2}(?:\/\d{2,4})?(?:\s+[A-Z0-9]{2,})*\s*[-:]?\s*/u, "");
-  // Remove any remaining leading separators
   out = out.replace(/^[\s\-:|]+/, "");
   return out.trim();
 };
 
+export type LabelOrientation = "portrait" | "landscape";
+
+const ORIENTATION_KEY = "labelOrientation";
+
+export const getLabelOrientation = (): LabelOrientation => {
+  const v = localStorage.getItem(ORIENTATION_KEY);
+  return v === "landscape" ? "landscape" : "portrait";
+};
+
+export const setLabelOrientation = (o: LabelOrientation) => {
+  localStorage.setItem(ORIENTATION_KEY, o);
+};
+
+const generateBarcodeDataUrl = (value: string, width: number, height: number): string | null => {
+  if (!value) return null;
+  try {
+    const canvas = document.createElement("canvas");
+    JsBarcode(canvas, value, {
+      format: "CODE128",
+      width: 2,
+      height: 60,
+      displayValue: false,
+      margin: 0,
+    });
+    // Resize via target canvas to fit pdf area (jsPDF will scale anyway with width/height args)
+    return canvas.toDataURL("image/png");
+  } catch {
+    return null;
+  }
+};
+
 /**
- * Generate a 32x57mm label PDF (portrait) for the DYMO LabelWriter 550
- * (DYMO S0722540 "Étiquettes polyvalentes 32 x 57 mm LW").
- * Layout (top → bottom): Ref + Emplacement, Label (max 2 lines),
- * Prix HT, Prix remisé HT (if any), Barcode.
+ * Génère une étiquette DYMO 30334 (57×32 mm).
+ *
+ * Le pilote DYMO LabelWriter 550 attend la page PDF en PORTRAIT 32×57.
+ * Si on envoie un PDF paysage 57×32, l'impression s'étale sur 2 étiquettes.
+ *
+ * → On génère TOUJOURS le PDF en portrait 32×57.
+ *   - Mode "portrait" : contenu dessiné droit (lecture en hauteur).
+ *   - Mode "landscape" : contenu pivoté de 90° (lecture en largeur).
  */
 export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> {
-  // Fetch best discounted price (supplier discount or promo, whichever is lower)
+  const orientation = getLabelOrientation();
+
   const [discounted, promos] = await Promise.all([
     getSupplierDiscountForProduct(product),
     getProductPromos(product.id),
@@ -44,85 +75,98 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
 
   const opts = product.array_options || {};
   const emplacement = opts.options_emplacement || "";
+  const cleaned = cleanLabel(product.label || "");
 
-  // DYMO 30334 (S0722540) : étiquette physique 57 x 32 mm.
-  // Le pilote DYMO LabelWriter attend la page en PORTRAIT (32 large × 57 haut).
-  // Si on envoie un PDF paysage 57×32, il s'étale sur 2 étiquettes.
-  // → On génère donc en portrait 32×57 et on dessine le contenu pivoté de 90°
-  //   pour conserver une lecture en paysage sur l'étiquette.
-  const PAGE_W = 32; // largeur page PDF (= petit côté étiquette)
-  const PAGE_H = 57; // hauteur page PDF (= grand côté étiquette)
+  // Page PDF physique : toujours 32×57 portrait pour DYMO 30334.
+  const PAGE_W = 32;
+  const PAGE_H = 57;
   const doc = new jsPDF({ unit: "mm", format: [PAGE_W, PAGE_H], orientation: "portrait" });
 
-  // Espace de dessin "logique" en paysage (W large, H haut)
-  const W = PAGE_H; // 57
-  const H = PAGE_W; // 32
+  // Espace logique : on dessine dans (W,H) puis on transforme.
+  // - landscape : W=57, H=32, rotation 90° → coords (x,y) → (y, W-x), angle=90.
+  // - portrait  : W=32, H=57, identité.
+  const isLandscape = orientation === "landscape";
+  const W = isLandscape ? 57 : 32;
+  const H = isLandscape ? 32 : 57;
   const margin = 1.5;
   const contentW = W - margin * 2;
 
-  // Conversion d'un point (x,y) du repère paysage vers le repère portrait du PDF.
-  // Rotation 90° anti-horaire : (x, y)_paysage → (y, W - x)_portrait
-  const tx = (_x: number, y: number) => y;
-  const ty = (x: number, _y: number) => W - x;
-  const ANGLE = 90; // jsPDF tourne le texte en degrés (anti-horaire)
+  const tx = (x: number, y: number) => (isLandscape ? y : x);
+  const ty = (x: number, y: number) => (isLandscape ? W - x : y);
+  const ANGLE = isLandscape ? 90 : 0;
+
+  const drawText = (text: string, x: number, y: number, opts2: any = {}) => {
+    doc.text(text, tx(x, y), ty(x, y), { angle: ANGLE, ...opts2 });
+  };
+
+  const drawImage = (data: string, x: number, y: number, w: number, h: number) => {
+    if (isLandscape) {
+      // image rotated 90°: in PDF coords its origin is at (tx(x,y+h), ty(x,y+h))? simpler: use addImage with rotation.
+      doc.addImage(data, "PNG", tx(x, y + h), ty(x, y + h), w, h, undefined, "FAST", -90);
+    } else {
+      doc.addImage(data, "PNG", x, y, w, h, undefined, "FAST");
+    }
+  };
 
   let y = margin + 2.2;
 
   // Réf (haut-gauche)
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
-  doc.text(`Réf: ${product.ref}`, tx(margin, y), ty(margin, y), { angle: ANGLE });
+  drawText(`Réf: ${product.ref}`, margin, y);
 
   // Emplacement (haut-droite)
   if (emplacement) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
     const txt = emplacement.length > 22 ? emplacement.slice(0, 22) : emplacement;
-    const xRight = W - margin;
-    doc.text(txt, tx(xRight, y), ty(xRight, y), { angle: ANGLE, align: "right" });
+    drawText(txt, W - margin, y, { align: "right" });
   }
 
-  // Libellé (nettoyé + max 2 lignes)
+  // Libellé (max 2 lignes)
   y += 3.6;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  const cleaned = cleanLabel(product.label || "");
-  const labelLines = doc.splitTextToSize(cleaned, contentW);
-  const lines = labelLines.slice(0, 2) as string[];
-  lines.forEach((line, i) => {
-    const ly = y + i * 3.2;
-    doc.text(line, tx(margin, ly), ty(margin, ly), { angle: ANGLE });
+  const labelLines = doc.splitTextToSize(cleaned, contentW).slice(0, 2) as string[];
+  labelLines.forEach((line, i) => {
+    drawText(line, margin, y + i * 3.2);
   });
+  y += labelLines.length * 3.2 + 1;
+
+  // Code-barres (centre, hauteur fixe)
+  const barcodeValue = product.barcode || product.ref;
+  const bcDataUrl = generateBarcodeDataUrl(barcodeValue, contentW, 8);
+  const bcH = 8;
+  if (bcDataUrl) {
+    const bcW = contentW;
+    drawImage(bcDataUrl, margin, y, bcW, bcH);
+    y += bcH + 1;
+    // valeur sous le code-barres
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6);
+    drawText(barcodeValue, W / 2, y, { align: "center" });
+  }
 
   // Prix HT (gauche) et Remisé (droite) en bas
-  const yBottom = H - margin - 2;
+  const yBottom = H - margin - 1;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text(`HT: ${formatPrice(priceHt)}`, tx(margin, yBottom), ty(margin, yBottom), { angle: ANGLE });
+  doc.setFontSize(remisedHt != null ? 9 : 11);
+  drawText(`HT: ${formatPrice(priceHt)}`, margin, yBottom);
 
   if (remisedHt != null) {
-    const xRight = W - margin;
-    doc.text(
-      `Remisé: ${formatPrice(remisedHt)}`,
-      tx(xRight, yBottom),
-      ty(xRight, yBottom),
-      { angle: ANGLE, align: "right" }
-    );
+    doc.setTextColor(180, 30, 30);
+    drawText(`Remisé: ${formatPrice(remisedHt)}`, W - margin, yBottom, { align: "right" });
+    doc.setTextColor(0, 0, 0);
   }
 
   return doc.output("blob");
 }
 
-/**
- * Open the generated label PDF in a new tab so the user can print it
- * (DYMO LabelWriter 550 via system print dialog) or share/download it.
- */
 export async function printProductLabel(product: DolibarrProduct): Promise<void> {
   const blob = await generateLabelPdf(product);
   const url = URL.createObjectURL(blob);
   const win = window.open(url, "_blank");
   if (!win) {
-    // Fallback: trigger download
     const a = document.createElement("a");
     a.href = url;
     a.download = `etiquette-${product.ref}.pdf`;

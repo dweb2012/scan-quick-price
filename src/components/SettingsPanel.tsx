@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Plus, Trash2, LogOut } from "lucide-react";
 import { toast } from "sonner";
+import { getLabelOrientation, setLabelOrientation, type LabelOrientation } from "@/lib/labelPdf";
 
 const SettingsPanel = () => {
   const [baseUrl, setBaseUrl] = useState("");
@@ -18,6 +19,18 @@ const SettingsPanel = () => {
   const [newName, setNewName] = useState("");
   const [newPercent, setNewPercent] = useState("");
   const [newSocid, setNewSocid] = useState("");
+
+  const [labelOrient, setLabelOrient] = useState<LabelOrientation>("portrait");
+
+  useEffect(() => {
+    setLabelOrient(getLabelOrientation());
+  }, []);
+
+  const handleOrientationChange = (o: LabelOrientation) => {
+    setLabelOrient(o);
+    setLabelOrientation(o);
+    toast.success(`Orientation : ${o === "portrait" ? "Portrait" : "Paysage"}`);
+  };
 
   useEffect(() => {
     Promise.all([
@@ -141,6 +154,33 @@ const SettingsPanel = () => {
         >
           Enregistrer
         </Button>
+      </div>
+
+      {/* Label orientation */}
+      <div className="border-t border-border pt-5 space-y-3">
+        <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+          Format d'étiquette DYMO (30334 · 57×32)
+        </h3>
+        <p className="text-xs text-muted-foreground">
+          Le PDF est toujours envoyé à l'imprimante au format natif portrait 32×57 mm
+          pour éviter le découpage en 2 étiquettes. Choisissez le sens de lecture du contenu.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            variant={labelOrient === "portrait" ? "default" : "outline"}
+            onClick={() => handleOrientationChange("portrait")}
+            className="touch-target"
+          >
+            Portrait
+          </Button>
+          <Button
+            variant={labelOrient === "landscape" ? "default" : "outline"}
+            onClick={() => handleOrientationChange("landscape")}
+            className="touch-target"
+          >
+            Paysage
+          </Button>
+        </div>
       </div>
 
       {/* Supplier discounts */}
