@@ -127,64 +127,52 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
   ctx.textBaseline = "alphabetic";
 
   const margin = 1.2;
+  const contentW = W - margin * 2;
 
-  // Découpe horizontale : ~62% texte à gauche, ~38% code-barres à droite.
-  const leftW = 34;
-  const rightX = leftW + 0.6;
-  const rightW = W - rightX - margin;
-
-  // ---- Colonne gauche ----
-  let y = margin + 2.8;
+  // ---- Ligne 1 : Réf (gauche) + libellé (droite, sur 2 lignes max) ----
+  let y = margin + 2.6;
   ctx.textAlign = "left";
+  setCanvasFont(ctx, 8, "bold");
+  const refText = `Réf: ${product.ref}`;
+  const refW = Math.min(ctx.measureText(refText).width + 1.2, contentW * 0.45);
+  ctx.fillText(ellipsize(ctx, refText, refW), margin, y);
 
-  // Réf (bold)
-  setCanvasFont(ctx, 8.5, "bold");
-  ctx.fillText(ellipsize(ctx, `Réf: ${product.ref}`, leftW - margin), margin, y);
-
-  // Libellé (max 2 lignes, 8pt)
-  y += 3.2;
+  // Libellé à droite de la réf, peut passer sur 2 lignes
   setCanvasFont(ctx, 7.5);
-  const labelLines = wrapText(ctx, cleaned, leftW - margin, 2);
+  const labelX = margin + refW + 1;
+  const labelMaxW = W - margin - labelX;
+  const labelLines = wrapText(ctx, cleaned, labelMaxW, 2);
   labelLines.forEach((line, i) => {
-    ctx.fillText(line, margin, y + i * 2.9);
+    ctx.fillText(line, labelX, y + i * 2.8);
   });
-  y += labelLines.length * 2.9;
 
-  // Emplacement
-  if (emplacement) {
-    y += 2.6;
-    setCanvasFont(ctx, 6.5);
-    ctx.fillText(ellipsize(ctx, `📍 ${emplacement}`, leftW - margin), margin, y);
-  }
-
-  // Prix en bas du bloc gauche
-  const yPrice = H - margin - 1;
-  setCanvasFont(ctx, remisedHt != null ? 8 : 10, "bold");
-  ctx.fillStyle = "#000000";
-  ctx.textAlign = "left";
-  ctx.fillText(`HT ${formatPrice(priceHt)}`, margin, yPrice);
-
-  if (remisedHt != null) {
-    setCanvasFont(ctx, 8, "bold");
-    ctx.fillStyle = "#b41e1e";
-    ctx.fillText(`Promo ${formatPrice(remisedHt)}`, margin, yPrice - 3.4);
-  }
-
-  // ---- Colonne droite : code-barres ----
-  ctx.fillStyle = "#000000";
+  // ---- Ligne 2 : Code-barres centré ----
+  const bcY = margin + 6;
+  const bcH = 13;
   const barcodeValue = product.barcode || product.ref;
   const barcodeCanvas = generateBarcodeCanvas(barcodeValue);
   if (barcodeCanvas) {
-    const bcH = 14; // hauteur max 14 mm comme demandé
-    const bcY = margin + 1;
-    ctx.drawImage(barcodeCanvas, rightX, bcY, rightW, bcH);
-    setCanvasFont(ctx, 5.5);
+    ctx.drawImage(barcodeCanvas, margin, bcY, contentW, bcH);
+    setCanvasFont(ctx, 5);
     ctx.textAlign = "center";
     ctx.fillText(
-      ellipsize(ctx, barcodeValue, rightW),
-      rightX + rightW / 2,
-      bcY + bcH + 2.4
+      ellipsize(ctx, barcodeValue, contentW),
+      W / 2,
+      bcY + bcH + 2.2
     );
+  }
+
+  // ---- Ligne 3 : Prix HT (gauche) + Promo HT (droite) ----
+  const yPrice = H - margin - 0.6;
+  setCanvasFont(ctx, 9, "bold");
+  ctx.fillStyle = "#000000";
+  ctx.textAlign = "left";
+  ctx.fillText(`HT: ${formatPrice(priceHt)}`, margin, yPrice);
+
+  if (remisedHt != null) {
+    ctx.fillStyle = "#b41e1e";
+    ctx.textAlign = "right";
+    ctx.fillText(`Promo HT: ${formatPrice(remisedHt)}`, W - margin, yPrice);
   }
 
   // Format PDF EXACT 57 x 32 mm paysage, sans rescale par le viewer.
