@@ -145,7 +145,7 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
 
   if (remisedHt != null) {
     doc.setTextColor(180, 30, 30);
-    doc.text(`Remisé: ${formatPrice(remisedHt)}`, W - margin, yBottom, { align: "right" });
+    doc.text(`Promo HT: ${formatPrice(remisedHt)}`, W - margin, yBottom, { align: "right" });
     doc.setTextColor(0, 0, 0);
   }
 
