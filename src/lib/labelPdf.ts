@@ -125,8 +125,6 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
       ? promoBest
       : discounted?.price ?? null;
 
-  const opts = product.array_options || {};
-  const emplacement = opts.options_emplacement || "";
   const cleaned = cleanLabel(product.label || "");
 
   // Format PDF EXACT 57 x 32 mm paysage, sans rotation du contenu.
