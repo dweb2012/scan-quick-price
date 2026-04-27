@@ -162,13 +162,13 @@ const SettingsPanel = () => {
           Format d'étiquette DYMO (30334 · 57×32)
         </h3>
         <p className="text-xs text-muted-foreground">
-          Choisissez l'orientation correspondant <strong>exactement</strong> au format
-          papier configuré dans le pilote DYMO. Sinon l'étiquette sera découpée
-          sur 2 vignettes.
+          Votre DYMO détecte le rouleau en <strong>32 × 57 mm LW</strong>. Le PDF garde
+          toujours cette taille physique pour éviter le découpage sur 2 vignettes,
+          même en affichage paysage.
           <br />
           • Portrait → page 32 × 57 mm
           <br />
-          • Paysage → page 57 × 32 mm
+          • Paysage → contenu tourné dans la page 32 × 57 mm
         </p>
         <div className="grid grid-cols-2 gap-2">
           <Button

@@ -41,7 +41,7 @@ const LabelPreviewDialog = ({ product, open, onOpenChange, onPrint, printing }: 
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            Aperçu étiquette — {orientation === "landscape" ? "Paysage 57×32 mm" : "Portrait 32×57 mm"}
+            Aperçu étiquette — {orientation === "landscape" ? "Paysage dans page 32×57 mm" : "Portrait 32×57 mm"}
           </DialogTitle>
         </DialogHeader>
 
@@ -58,7 +58,7 @@ const LabelPreviewDialog = ({ product, open, onOpenChange, onPrint, printing }: 
         </div>
 
         <p className="text-xs text-muted-foreground text-center">
-          Réf, libellé, code-barres et prix tels qu'ils seront imprimés sur la DYMO 30334.
+          Réf, libellé, code-barres et prix tels qu'ils seront imprimés sur la DYMO 30334, sans changement de format Windows.
         </p>
 
         <DialogFooter className="gap-2 sm:gap-2">
