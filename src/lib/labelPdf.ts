@@ -105,10 +105,9 @@ const wrapPdfText = (
 
 /**
  * Génère une étiquette DYMO 11354 / 30334 au format EXACT 57 × 32 mm paysage.
- * Layout horizontal : bloc gauche (Réf + libellé + emplacement + prix),
- * code-barres collé à droite.
+ * Layout 57 × 32 mm : textes en haut, code-barres à gauche, prix à droite.
  */
-export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> {
+const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> => {
   const [discounted, promos] = await Promise.all([
     getSupplierDiscountForProduct(product),
     getProductPromos(product.id),
@@ -129,11 +128,11 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
 
   // Format PDF EXACT 57 x 32 mm paysage, sans rotation du contenu.
   const doc = new jsPDF({
-    orientation: "landscape",
-    unit: "mm",
-    format: [LABEL_H, LABEL_W],
+    orientation: 'landscape',
+    unit: 'mm',
+    format: [32, 57],
     compress: true,
-    putOnlyUsedFonts: true,
+    putOnlyUsedFonts: true
   });
 
   doc.viewerPreferences({ PrintScaling: "None", PickTrayByPDFSize: true });
@@ -172,12 +171,17 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
   }
 
   doc.autoPrint();
+  return doc;
+};
+
+export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> {
+  const doc = await buildLabelPdfDocument(product);
   return doc.output("blob");
 }
 
 export async function printProductLabel(product: DolibarrProduct): Promise<void> {
-  const blob = await generateLabelPdf(product);
-  const url = URL.createObjectURL(blob);
+  const doc = await buildLabelPdfDocument(product);
+  const url = doc.output("bloburl");
   const win = window.open(url, "_blank");
   if (!win) {
     const a = document.createElement("a");
