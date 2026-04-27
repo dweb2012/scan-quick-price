@@ -47,12 +47,13 @@ const generateBarcodeDataUrl = (value: string, width: number, height: number): s
 /**
  * Génère une étiquette DYMO 30334 (57×32 mm).
  *
- * Le pilote DYMO LabelWriter 550 attend la page PDF en PORTRAIT 32×57.
- * Si on envoie un PDF paysage 57×32, l'impression s'étale sur 2 étiquettes.
+ * La taille du PDF doit correspondre EXACTEMENT au format papier configuré
+ * dans le pilote DYMO, sinon la page est répartie sur deux étiquettes.
  *
- * → On génère TOUJOURS le PDF en portrait 32×57.
- *   - Mode "portrait" : contenu dessiné droit (lecture en hauteur).
- *   - Mode "landscape" : contenu pivoté de 90° (lecture en largeur).
+ *  - "portrait"  → page PDF 32 × 57 mm (étiquette debout)
+ *  - "landscape" → page PDF 57 × 32 mm (étiquette couchée)
+ *
+ * Le contenu est dessiné droit dans la page (pas de rotation interne).
  */
 export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> {
   const orientation = getLabelOrientation();
@@ -77,85 +78,74 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
   const emplacement = opts.options_emplacement || "";
   const cleaned = cleanLabel(product.label || "");
 
-  // Page PDF physique : toujours 32×57 portrait pour DYMO 30334.
-  const PAGE_W = 32;
-  const PAGE_H = 57;
-  const doc = new jsPDF({ unit: "mm", format: [PAGE_W, PAGE_H], orientation: "portrait" });
-
-  // Espace logique : on dessine dans (W,H) puis on transforme.
-  // - landscape : W=57, H=32, rotation 90° → coords (x,y) → (y, W-x), angle=90.
-  // - portrait  : W=32, H=57, identité.
+  // Le format PDF correspond EXACTEMENT au papier choisi dans le pilote.
   const isLandscape = orientation === "landscape";
-  const W = isLandscape ? 57 : 32;
-  const H = isLandscape ? 32 : 57;
+  const W = isLandscape ? 57 : 32; // largeur page mm
+  const H = isLandscape ? 32 : 57; // hauteur page mm
+
+  const doc = new jsPDF({
+    unit: "mm",
+    format: [W, H],
+    orientation: isLandscape ? "landscape" : "portrait",
+  });
+
   const margin = 1.5;
   const contentW = W - margin * 2;
 
-  const tx = (x: number, y: number) => (isLandscape ? y : x);
-  const ty = (x: number, y: number) => (isLandscape ? W - x : y);
-  const ANGLE = isLandscape ? 90 : 0;
+  // Layouts adaptés à chaque format : on calcule des tailles relatives.
+  const refSize = isLandscape ? 9 : 7.5;
+  const empSize = isLandscape ? 8 : 6.5;
+  const labelSize = isLandscape ? 8.5 : 7;
+  const labelLineH = isLandscape ? 3.4 : 2.8;
+  const bcH = isLandscape ? 9 : 7;
+  const priceSize = isLandscape ? (remisedHt != null ? 9 : 11) : (remisedHt != null ? 7.5 : 9);
+  const empMaxChars = isLandscape ? 22 : 14;
 
-  const drawText = (text: string, x: number, y: number, opts2: any = {}) => {
-    doc.text(text, tx(x, y), ty(x, y), { angle: ANGLE, ...opts2 });
-  };
-
-  const drawImage = (data: string, x: number, y: number, w: number, h: number) => {
-    if (isLandscape) {
-      // image rotated 90°: in PDF coords its origin is at (tx(x,y+h), ty(x,y+h))? simpler: use addImage with rotation.
-      doc.addImage(data, "PNG", tx(x, y + h), ty(x, y + h), w, h, undefined, "FAST", -90);
-    } else {
-      doc.addImage(data, "PNG", x, y, w, h, undefined, "FAST");
-    }
-  };
-
-  let y = margin + 2.2;
+  let y = margin + (isLandscape ? 2.6 : 2.2);
 
   // Réf (haut-gauche)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  drawText(`Réf: ${product.ref}`, margin, y);
+  doc.setFontSize(refSize);
+  doc.text(`Réf: ${product.ref}`, margin, y);
 
   // Emplacement (haut-droite)
   if (emplacement) {
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
-    const txt = emplacement.length > 22 ? emplacement.slice(0, 22) : emplacement;
-    drawText(txt, W - margin, y, { align: "right" });
+    doc.setFontSize(empSize);
+    const txt = emplacement.length > empMaxChars ? emplacement.slice(0, empMaxChars) : emplacement;
+    doc.text(txt, W - margin, y, { align: "right" });
   }
 
   // Libellé (max 2 lignes)
-  y += 3.6;
+  y += isLandscape ? 3.8 : 3.2;
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
+  doc.setFontSize(labelSize);
   const labelLines = doc.splitTextToSize(cleaned, contentW).slice(0, 2) as string[];
   labelLines.forEach((line, i) => {
-    drawText(line, margin, y + i * 3.2);
+    doc.text(line, margin, y + i * labelLineH);
   });
-  y += labelLines.length * 3.2 + 1;
+  y += labelLines.length * labelLineH + 1;
 
-  // Code-barres (centre, hauteur fixe)
+  // Code-barres (centre)
   const barcodeValue = product.barcode || product.ref;
-  const bcDataUrl = generateBarcodeDataUrl(barcodeValue, contentW, 8);
-  const bcH = 8;
+  const bcDataUrl = generateBarcodeDataUrl(barcodeValue, contentW, bcH);
   if (bcDataUrl) {
-    const bcW = contentW;
-    drawImage(bcDataUrl, margin, y, bcW, bcH);
-    y += bcH + 1;
-    // valeur sous le code-barres
+    doc.addImage(bcDataUrl, "PNG", margin, y, contentW, bcH, undefined, "FAST");
+    y += bcH + 0.6;
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(6);
-    drawText(barcodeValue, W / 2, y, { align: "center" });
+    doc.setFontSize(5.5);
+    doc.text(barcodeValue, W / 2, y, { align: "center" });
   }
 
   // Prix HT (gauche) et Remisé (droite) en bas
-  const yBottom = H - margin - 1;
+  const yBottom = H - margin - 0.8;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(remisedHt != null ? 9 : 11);
-  drawText(`HT: ${formatPrice(priceHt)}`, margin, yBottom);
+  doc.setFontSize(priceSize);
+  doc.text(`HT: ${formatPrice(priceHt)}`, margin, yBottom);
 
   if (remisedHt != null) {
     doc.setTextColor(180, 30, 30);
-    drawText(`Remisé: ${formatPrice(remisedHt)}`, W - margin, yBottom, { align: "right" });
+    doc.text(`Remisé: ${formatPrice(remisedHt)}`, W - margin, yBottom, { align: "right" });
     doc.setTextColor(0, 0, 0);
   }
 
