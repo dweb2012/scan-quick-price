@@ -1,25 +1,31 @@
+Je vais corriger la génération d’étiquette pour que le PDF corresponde réellement au format papier choisi par le pilote, au lieu de toujours envoyer une page PDF portrait.
 
+Plan de correction :
 
-## Problem
+1. Séparer deux notions dans le code
+   - Format papier PDF : dimensions exactes de la page envoyée à l’imprimante.
+   - Sens de lecture du contenu : portrait ou paysage.
 
-The "Failed to fetch" error when modifying stock happens because the browser makes a direct API call to your Dolibarr server. In the **Lovable Preview environment**, the fetch proxy can intercept and break these POST/PUT requests. This is a known limitation of the preview — it does **not** affect the published site.
+2. Modifier la génération PDF DYMO 30334
+   - En mode portrait : générer une page PDF strictement en 32 × 57 mm.
+   - En mode paysage : générer une page PDF strictement en 57 × 32 mm.
+   - Supprimer la rotation artificielle actuelle quand elle n’est pas nécessaire, car elle peut laisser une boîte PDF/zone image interprétée trop grande par le pilote.
+   - Garder tous les éléments à l’intérieur des marges : référence, emplacement, libellé sur 2 lignes, code-barres, prix HT et prix remisé.
 
-## Solution
+3. Recalculer automatiquement le layout selon le format
+   - Largeur/hauteur utiles recalculées à partir de la page réelle.
+   - Code-barres adapté au format choisi pour ne pas dépasser.
+   - Libellé et emplacement tronqués proprement si nécessaire.
+   - Prix placés en bas sans débordement.
 
-**Test on your published URL** (`scan-quick-price.lovable.app` or `scan.chrelite.fr`) — the stock modification should work correctly there.
+4. Ajuster le texte des paramètres
+   - Remplacer l’explication actuelle qui dit que le PDF est toujours envoyé en portrait.
+   - Expliquer que l’option doit correspondre au réglage papier du pilote DYMO :
+     - Portrait = page PDF 32 × 57 mm
+     - Paysage = page PDF 57 × 32 mm
 
-If the issue also occurs on the published URL, then it's a CORS problem on the Dolibarr side. In that case, the fix would be:
+5. Vérification
+   - Lancer le build/typecheck si disponible.
+   - Vérifier que le PDF généré reste sur une seule page et que les dimensions changent bien selon le choix portrait/paysage.
 
-1. **Create a backend proxy function** that forwards stock/extrafield update requests to Dolibarr server-side, bypassing browser CORS restrictions
-2. **Update `dolibarr.ts`** to route POST/PUT calls through this proxy instead of calling Dolibarr directly from the browser
-
-### Technical details
-
-- Create an edge function `dolibarr-proxy` that accepts the endpoint + method + body, reads Dolibarr credentials from the database, and forwards the request server-side
-- Update `updateProductStock()` and `updateProductExtrafields()` in `dolibarr.ts` to call this proxy
-- This also improves security by keeping the Dolibarr API key server-side
-
-## Recommendation
-
-**First step**: Publish and test on your published URL. If it works there, no code change is needed — it's just a preview limitation. If it fails there too, I'll implement the proxy approach.
-
+Détail technique : le problème vient probablement du fait que les deux options actuelles produisent la même page PDF physique 32 × 57 mm, avec seulement le contenu pivoté. Si le pilote DYMO est configuré en 57 × 32 mm, il peut interpréter cette page comme trop haute/large et la répartir sur deux étiquettes. La correction consiste à faire correspondre la taille réelle du PDF à l’orientation sélectionnée.
