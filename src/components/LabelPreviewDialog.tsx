@@ -41,7 +41,7 @@ const LabelPreviewDialog = ({ product, open, onOpenChange, onPrint, printing }: 
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            Aperçu étiquette — {orientation === "landscape" ? "Paysage dans page 32×57 mm" : "Portrait 32×57 mm"}
+            Aperçu étiquette — {orientation === "landscape" ? "Paysage 57×32 mm" : "Portrait 32×57 mm"}
           </DialogTitle>
         </DialogHeader>
 
