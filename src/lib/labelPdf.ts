@@ -136,7 +136,6 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
     format: [LABEL_H, LABEL_W],
     compress: true,
     putOnlyUsedFonts: true,
-    precision: 4,
   });
 
   doc.viewerPreferences({ PrintScaling: "None", PickTrayByPDFSize: true });
@@ -174,6 +173,7 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
     doc.text(fitText(doc, `Promo HT: ${formatPrice(remisedHt)}`, 19, 8), 36, 26);
   }
 
+  doc.autoPrint();
   return doc.output("blob");
 }
 
