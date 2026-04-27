@@ -132,16 +132,23 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
   const emplacement = opts.options_emplacement || "";
   const cleaned = cleanLabel(product.label || "");
 
-  // Le format PDF correspond EXACTEMENT au papier choisi dans le pilote.
+  // La DYMO détecte le papier comme 32 × 57 mm LW. On garde donc TOUJOURS
+  // cette taille physique côté PDF pour éviter que Windows/Chrome répartisse
+  // le document sur 2 étiquettes. Le mode paysage est rendu en image tournée
+  // dans cette même page physique, sans demander de réglage au pilote.
   const isLandscape = orientation === "landscape";
-  const W = isLandscape ? 57 : 32; // largeur page mm
-  const H = isLandscape ? 32 : 57; // hauteur page mm
+  const W = isLandscape ? PHYSICAL_LABEL_H : PHYSICAL_LABEL_W;
+  const H = isLandscape ? PHYSICAL_LABEL_W : PHYSICAL_LABEL_H;
 
-  const doc = new jsPDF({
-    unit: "mm",
-    format: [W, H],
-    orientation: isLandscape ? "landscape" : "portrait",
-  });
+  const layoutCanvas = document.createElement("canvas");
+  layoutCanvas.width = W * PX_PER_MM;
+  layoutCanvas.height = H * PX_PER_MM;
+  const ctx = layoutCanvas.getContext("2d")!;
+  ctx.scale(PX_PER_MM, PX_PER_MM);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#000000";
+  ctx.textBaseline = "alphabetic";
 
   const margin = 1.5;
   const contentW = W - margin * 2;
@@ -158,50 +165,73 @@ export async function generateLabelPdf(product: DolibarrProduct): Promise<Blob> 
   let y = margin + (isLandscape ? 2.6 : 2.2);
 
   // Réf (haut-gauche)
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(refSize);
-  doc.text(`Réf: ${product.ref}`, margin, y);
+  setCanvasFont(ctx, refSize, "bold");
+  ctx.textAlign = "left";
+  ctx.fillText(ellipsize(ctx, `Réf: ${product.ref}`, contentW * 0.58), margin, y);
 
   // Emplacement (haut-droite)
   if (emplacement) {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(empSize);
+    setCanvasFont(ctx, empSize);
+    ctx.textAlign = "right";
     const txt = emplacement.length > empMaxChars ? emplacement.slice(0, empMaxChars) : emplacement;
-    doc.text(txt, W - margin, y, { align: "right" });
+    ctx.fillText(ellipsize(ctx, txt, contentW * 0.38), W - margin, y);
   }
 
   // Libellé (max 2 lignes)
   y += isLandscape ? 3.8 : 3.2;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(labelSize);
-  const labelLines = doc.splitTextToSize(cleaned, contentW).slice(0, 2) as string[];
+  setCanvasFont(ctx, labelSize);
+  ctx.textAlign = "left";
+  const labelLines = wrapText(ctx, cleaned, contentW, 2);
   labelLines.forEach((line, i) => {
-    doc.text(line, margin, y + i * labelLineH);
+    ctx.fillText(line, margin, y + i * labelLineH);
   });
   y += labelLines.length * labelLineH + 1;
 
   // Code-barres (centre)
   const barcodeValue = product.barcode || product.ref;
-  const bcDataUrl = generateBarcodeDataUrl(barcodeValue, contentW, bcH);
-  if (bcDataUrl) {
-    doc.addImage(bcDataUrl, "PNG", margin, y, contentW, bcH, undefined, "FAST");
+  const barcodeCanvas = generateBarcodeCanvas(barcodeValue);
+  if (barcodeCanvas) {
+    ctx.drawImage(barcodeCanvas, margin, y, contentW, bcH);
     y += bcH + 0.6;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(5.5);
-    doc.text(barcodeValue, W / 2, y, { align: "center" });
+    setCanvasFont(ctx, 5.5);
+    ctx.textAlign = "center";
+    ctx.fillText(ellipsize(ctx, barcodeValue, contentW), W / 2, y);
   }
 
-  // Prix HT (gauche) et Remisé (droite) en bas
+  // Prix HT (gauche) et promo HT (droite) en bas
   const yBottom = H - margin - 0.8;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(priceSize);
-  doc.text(`HT: ${formatPrice(priceHt)}`, margin, yBottom);
+  setCanvasFont(ctx, priceSize, "bold");
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#000000";
+  ctx.fillText(`HT: ${formatPrice(priceHt)}`, margin, yBottom);
 
   if (remisedHt != null) {
-    doc.setTextColor(180, 30, 30);
-    doc.text(`Promo HT: ${formatPrice(remisedHt)}`, W - margin, yBottom, { align: "right" });
-    doc.setTextColor(0, 0, 0);
+    ctx.fillStyle = "#b41e1e";
+    ctx.textAlign = "right";
+    ctx.fillText(`Promo HT: ${formatPrice(remisedHt)}`, W - margin, yBottom);
   }
+
+  const printCanvas = isLandscape ? rotateLandscapeCanvasToPortraitMedia(layoutCanvas) : layoutCanvas;
+  const doc = new jsPDF({
+    unit: "mm",
+    format: [PHYSICAL_LABEL_W, PHYSICAL_LABEL_H],
+    orientation: "portrait",
+    precision: 4,
+    putOnlyUsedFonts: true,
+    compress: true,
+  });
+
+  doc.viewerPreferences({ PrintScaling: "None", PickTrayByPDFSize: true });
+  doc.addImage(
+    printCanvas.toDataURL("image/png"),
+    "PNG",
+    0,
+    0,
+    PHYSICAL_LABEL_W,
+    PHYSICAL_LABEL_H,
+    undefined,
+    "FAST"
+  );
 
   return doc.output("blob");
 }
