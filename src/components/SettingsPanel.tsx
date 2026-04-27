@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Plus, Trash2, LogOut } from "lucide-react";
 import { toast } from "sonner";
+import { getLabelOrientation, setLabelOrientation, type LabelOrientation } from "@/lib/labelPdf";
 
 const SettingsPanel = () => {
   const [baseUrl, setBaseUrl] = useState("");
@@ -18,6 +19,18 @@ const SettingsPanel = () => {
   const [newName, setNewName] = useState("");
   const [newPercent, setNewPercent] = useState("");
   const [newSocid, setNewSocid] = useState("");
+
+  const [labelOrient, setLabelOrient] = useState<LabelOrientation>("portrait");
+
+  useEffect(() => {
+    setLabelOrient(getLabelOrientation());
+  }, []);
+
+  const handleOrientationChange = (o: LabelOrientation) => {
+    setLabelOrient(o);
+    setLabelOrientation(o);
+    toast.success(`Orientation : ${o === "portrait" ? "Portrait" : "Paysage"}`);
+  };
 
   useEffect(() => {
     Promise.all([
