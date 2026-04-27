@@ -3,9 +3,8 @@ import { getSettings, saveSettings, testConnection, getSupplierDiscounts, saveSu
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Plus, Trash2, LogOut } from "lucide-react";
 import { toast } from "sonner";
-import { getLabelOrientation, setLabelOrientation, type LabelOrientation } from "@/lib/labelPdf";
+import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Plus, Trash2, LogOut } from "lucide-react";
 
 const SettingsPanel = () => {
   const [baseUrl, setBaseUrl] = useState("");
@@ -19,18 +18,6 @@ const SettingsPanel = () => {
   const [newName, setNewName] = useState("");
   const [newPercent, setNewPercent] = useState("");
   const [newSocid, setNewSocid] = useState("");
-
-  const [labelOrient, setLabelOrient] = useState<LabelOrientation>("portrait");
-
-  useEffect(() => {
-    setLabelOrient(getLabelOrientation());
-  }, []);
-
-  const handleOrientationChange = (o: LabelOrientation) => {
-    setLabelOrient(o);
-    setLabelOrientation(o);
-    toast.success(`Orientation : ${o === "portrait" ? "Portrait" : "Paysage"}`);
-  };
 
   useEffect(() => {
     Promise.all([
@@ -156,36 +143,17 @@ const SettingsPanel = () => {
         </Button>
       </div>
 
-      {/* Label orientation */}
-      <div className="border-t border-border pt-5 space-y-3">
+      {/* Label format info */}
+      <div className="border-t border-border pt-5 space-y-2">
         <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
-          Format d'étiquette DYMO (30334 · 57×32)
+          Format d'étiquette DYMO 11354 / 30334
         </h3>
         <p className="text-xs text-muted-foreground">
-          Votre DYMO détecte le rouleau en <strong>32 × 57 mm LW</strong>. Le PDF garde
-          toujours cette taille physique pour éviter le découpage sur 2 vignettes,
-          même en affichage paysage.
-          <br />
-          • Portrait → page 32 × 57 mm
-          <br />
-          • Paysage → contenu tourné dans la page 32 × 57 mm
+          Le PDF est généré en <strong>57 × 32 mm paysage</strong>, taille exacte
+          du rouleau. Dans le pilote DYMO Windows, sélectionnez le format
+          <strong> 11354 (57 × 32 mm)</strong> et désactivez tout
+          « adapter à la page » pour éviter l'impression sur 2 étiquettes.
         </p>
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            variant={labelOrient === "portrait" ? "default" : "outline"}
-            onClick={() => handleOrientationChange("portrait")}
-            className="touch-target"
-          >
-            Portrait
-          </Button>
-          <Button
-            variant={labelOrient === "landscape" ? "default" : "outline"}
-            onClick={() => handleOrientationChange("landscape")}
-            className="touch-target"
-          >
-            Paysage
-          </Button>
-        </div>
       </div>
 
       {/* Supplier discounts */}

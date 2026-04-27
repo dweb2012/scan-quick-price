@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { DolibarrProduct } from "@/lib/dolibarr";
-import { generateLabelPdf, getLabelOrientation, LabelOrientation } from "@/lib/labelPdf";
+import { generateLabelPdf } from "@/lib/labelPdf";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, Printer, X } from "lucide-react";
@@ -16,11 +16,9 @@ interface Props {
 const LabelPreviewDialog = ({ product, open, onOpenChange, onPrint, printing }: Props) => {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [orientation, setOrientation] = useState<LabelOrientation>(getLabelOrientation());
 
   useEffect(() => {
     if (!open) return;
-    setOrientation(getLabelOrientation());
     let revoked: string | null = null;
     setLoading(true);
     generateLabelPdf(product)
@@ -41,7 +39,7 @@ const LabelPreviewDialog = ({ product, open, onOpenChange, onPrint, printing }: 
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            Aperçu étiquette — {orientation === "landscape" ? "Paysage 57×32 mm" : "Portrait 32×57 mm"}
+            Aperçu étiquette — DYMO 11354 (57 × 32 mm)
           </DialogTitle>
         </DialogHeader>
 
