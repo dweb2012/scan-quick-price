@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { DolibarrProduct, getPriceHT, fetchProductImageBlob, getSupplierDiscountForProduct, getProductPromos, PromoPrice, updateProductStock, updateProductExtrafields, getWarehouses } from "@/lib/dolibarr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScanLine, Package, Tag, Truck, MapPin, Loader2, RotateCcw, Edit2, Plus, Minus, Save, X, Warehouse, Printer } from "lucide-react";
+import { ScanLine, Package, Tag, Truck, MapPin, Loader2, RotateCcw, Edit2, Plus, Minus, Save, X, Warehouse, Printer, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { printProductLabel } from "@/lib/labelPdf";
 import { useActiveAisle } from "@/hooks/use-active-aisle";
+import { parseEmplacement, formatEmplacement } from "@/lib/aisle";
 
 interface ProductCardProps {
   product: DolibarrProduct;
@@ -203,26 +204,34 @@ const StockEditor = ({ product }: { product: DolibarrProduct }) => {
 const LocationEditor = ({
   product,
   open: openProp,
-  initialValue,
+  initialAisle,
+  initialSpot,
   onClose,
 }: {
   product: DolibarrProduct;
   open?: boolean;
-  initialValue?: string;
+  initialAisle?: string;
+  initialSpot?: string;
   onClose?: () => void;
 }) => {
   const opts = product.array_options || {};
+  const activeAisle = useActiveAisle();
+  const initialParsed = parseEmplacement(opts.options_emplacement);
   const [open, setOpen] = useState(false);
-  const [value, setValue] = useState(opts.options_emplacement || "");
+  const [aisle, setAisle] = useState<string>(
+    initialParsed.aisle || activeAisle || ""
+  );
+  const [spot, setSpot] = useState<string>(initialParsed.spot || "");
   const [saving, setSaving] = useState(false);
 
   const isOpen = openProp ?? open;
 
   useEffect(() => {
-    if (openProp && initialValue !== undefined) {
-      setValue(initialValue);
+    if (openProp) {
+      if (initialAisle !== undefined) setAisle(initialAisle);
+      if (initialSpot !== undefined) setSpot(initialSpot);
     }
-  }, [openProp, initialValue]);
+  }, [openProp, initialAisle, initialSpot]);
 
   const handleClose = () => {
     setOpen(false);
@@ -232,6 +241,7 @@ const LocationEditor = ({
   const handleSave = async () => {
     setSaving(true);
     try {
+      const value = formatEmplacement(aisle, spot);
       await updateProductExtrafields(product.id, { options_emplacement: value });
       toast.success("Emplacement mis à jour");
       handleClose();
@@ -258,13 +268,27 @@ const LocationEditor = ({
           <X size={18} />
         </button>
       </div>
-      <Input
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="Ex: Allée 3, Étagère B2"
-        className="touch-target text-base"
-        autoFocus
-      />
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground font-medium">Allée</label>
+          <Input
+            value={aisle}
+            onChange={(e) => setAisle(e.target.value)}
+            placeholder="Ex: A1"
+            className="touch-target text-base"
+            autoFocus
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground font-medium">Emplacement</label>
+          <Input
+            value={spot}
+            onChange={(e) => setSpot(e.target.value)}
+            placeholder="Ex: Étagère B2"
+            className="touch-target text-base"
+          />
+        </div>
+      </div>
       <Button
         onClick={handleSave}
         disabled={saving}
@@ -284,7 +308,8 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const [printing, setPrinting] = useState(false);
   const activeAisle = useActiveAisle();
   const [aisleEditorOpen, setAisleEditorOpen] = useState(false);
-  const [aisleEditorInitial, setAisleEditorInitial] = useState<string>("");
+  const [aisleEditorInitialAisle, setAisleEditorInitialAisle] = useState<string>("");
+  const [aisleEditorInitialSpot, setAisleEditorInitialSpot] = useState<string>("");
 
   const handlePrint = async () => {
     setPrinting(true);
@@ -306,18 +331,16 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const marque = opts.options_marque || "";
   const fournisseur = product.supplierName || opts.options_fournisseur || "";
   const emplacement = opts.options_emplacement || "";
+  const parsed = parseEmplacement(emplacement);
+  const productAisle = parsed.aisle;
+  const productSpot = parsed.spot;
+  const aisleMismatch =
+    !!productAisle && !!activeAisle && productAisle !== activeAisle;
 
   const handleStoreHere = () => {
     if (!activeAisle) return;
-    const existing = (emplacement || "").trim();
-    // Option 3: pre-fill editor with "<aisle> - <existing>" so user confirms / edits
-    const prefix = `${activeAisle} - `;
-    const initial = existing
-      ? existing.startsWith(prefix) || existing === activeAisle
-        ? existing
-        : `${prefix}${existing}`
-      : prefix;
-    setAisleEditorInitial(initial);
+    setAisleEditorInitialAisle(activeAisle);
+    setAisleEditorInitialSpot(productSpot || "");
     setAisleEditorOpen(true);
   };
   const primaryPromo = promos.reduce<PromoPrice | null>((bestPromo, promo) => {
@@ -346,11 +369,25 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
         <p className="text-sm text-muted-foreground mt-1">Réf: {product.ref}</p>
       </div>
 
-      {(marque || fournisseur || emplacement) && (
+      {(marque || fournisseur || productAisle || productSpot) && (
         <div className="w-full max-w-sm bg-card rounded-xl p-3 shadow border border-border space-y-2">
           {marque && <InfoRow icon={Tag} label="Marque" value={marque} />}
           {fournisseur && <InfoRow icon={Truck} label="Fournisseur" value={fournisseur} />}
-          {emplacement && <InfoRow icon={MapPin} label="Emplacement" value={emplacement} />}
+          {productAisle && (
+            <div className="flex items-center gap-2 text-sm">
+              <MapPin size={16} className="text-primary shrink-0" />
+              <span className="text-muted-foreground">Allée :</span>
+              <span className="font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-md">
+                {productAisle}
+              </span>
+              {aisleMismatch && (
+                <span className="ml-auto inline-flex items-center gap-1 text-xs text-stock-low font-medium">
+                  <AlertTriangle size={12} /> Pas dans l'allée scannée
+                </span>
+              )}
+            </div>
+          )}
+          {productSpot && <InfoRow icon={MapPin} label="Emplacement" value={productSpot} />}
         </div>
       )}
 
@@ -424,14 +461,14 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
       <div className="flex gap-2 w-full max-w-sm flex-wrap">
         <StockEditor product={product} />
         <LocationEditor product={product} />
-        {activeAisle && (
+        {activeAisle && productAisle !== activeAisle && (
           <Button
             variant="default"
             size="sm"
             onClick={handleStoreHere}
             className="gap-1 touch-target"
           >
-            <MapPin size={14} /> Ranger ici (Allée {activeAisle})
+            <MapPin size={14} /> Ranger ici ({activeAisle})
           </Button>
         )}
       </div>
@@ -440,7 +477,8 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
         <LocationEditor
           product={product}
           open={aisleEditorOpen}
-          initialValue={aisleEditorInitial}
+          initialAisle={aisleEditorInitialAisle}
+          initialSpot={aisleEditorInitialSpot}
           onClose={() => setAisleEditorOpen(false)}
         />
       )}
