@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Plus, Trash2, LogOut } from "lucide-react";
 import { QrCode } from "lucide-react";
-import { generateAisleLabelsPdf } from "@/lib/aisleLabelsPdf";
+import { generateAisleLabelsPdf, AisleLabelOrientation, AisleLabelPerPage } from "@/lib/aisleLabelsPdf";
 
 const SettingsPanel = () => {
   const [baseUrl, setBaseUrl] = useState("");
@@ -24,6 +24,8 @@ const SettingsPanel = () => {
   // Aisle labels
   const [aisleList, setAisleList] = useState("A, B, C, D, E, F");
   const [generatingAisles, setGeneratingAisles] = useState(false);
+  const [aisleOrientation, setAisleOrientation] = useState<AisleLabelOrientation>("portrait");
+  const [aislePerPage, setAislePerPage] = useState<AisleLabelPerPage>(8);
 
   useEffect(() => {
     Promise.all([
@@ -180,6 +182,42 @@ const SettingsPanel = () => {
             className="touch-target text-sm"
           />
         </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold">Orientation</label>
+            <div className="flex gap-1">
+              {(["portrait", "landscape"] as AisleLabelOrientation[]).map((o) => (
+                <Button
+                  key={o}
+                  type="button"
+                  size="sm"
+                  variant={aisleOrientation === o ? "default" : "outline"}
+                  className="flex-1 h-9 text-xs"
+                  onClick={() => setAisleOrientation(o)}
+                >
+                  {o === "portrait" ? "Portrait" : "Paysage"}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold">QR par page</label>
+            <div className="flex gap-1">
+              {([4, 6, 8] as AisleLabelPerPage[]).map((n) => (
+                <Button
+                  key={n}
+                  type="button"
+                  size="sm"
+                  variant={aislePerPage === n ? "default" : "outline"}
+                  className="flex-1 h-9 text-xs"
+                  onClick={() => setAislePerPage(n)}
+                >
+                  {n}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
         <Button
           onClick={async () => {
             const items = aisleList.split(",").map((s) => s.trim()).filter(Boolean);
@@ -189,7 +227,10 @@ const SettingsPanel = () => {
             }
             setGeneratingAisles(true);
             try {
-              await generateAisleLabelsPdf(items);
+              await generateAisleLabelsPdf(items, {
+                orientation: aisleOrientation,
+                perPage: aislePerPage,
+              });
             } catch (e: any) {
               toast.error(e?.message || "Erreur génération PDF");
             } finally {
