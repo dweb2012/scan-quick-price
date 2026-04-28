@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { DolibarrProduct, getPriceHT, fetchProductImageBlob, getSupplierDiscountForProduct, getProductPromos, PromoPrice, updateProductStock, updateProductExtrafields, getWarehouses } from "@/lib/dolibarr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScanLine, Package, Tag, Truck, MapPin, Loader2, RotateCcw, Edit2, Plus, Minus, Save, X, Warehouse, Printer } from "lucide-react";
+import { ScanLine, Package, Tag, Truck, MapPin, Loader2, RotateCcw, Edit2, Plus, Minus, Save, X, Warehouse, Printer, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { printProductLabel } from "@/lib/labelPdf";
 import { useActiveAisle } from "@/hooks/use-active-aisle";
+import { parseEmplacement, formatEmplacement } from "@/lib/aisle";
 
 interface ProductCardProps {
   product: DolibarrProduct;
