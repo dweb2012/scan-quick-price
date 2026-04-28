@@ -18,7 +18,7 @@ const formatPrice = (n: number) =>
 const StockBadge = ({ stock }: { stock: number }) => {
   const color =
     stock > 5 ? "bg-stock-ok" : stock > 0 ? "bg-stock-low" : "bg-stock-out";
-  const label = stock > 0 ? `${stock} en stock` : "Rupture de stock";
+  const label = stock > 0 ? `${stock} en stock` : `Rupture (${stock})`;
   return (
     <span className={`${color} text-white text-xs font-semibold px-3 py-1 rounded-full`}>
       {label}
