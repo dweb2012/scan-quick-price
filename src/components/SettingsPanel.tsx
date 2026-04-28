@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Plus, Trash2, LogOut } from "lucide-react";
+import { QrCode } from "lucide-react";
+import { generateAisleLabelsPdf } from "@/lib/aisleLabelsPdf";
 
 const SettingsPanel = () => {
   const [baseUrl, setBaseUrl] = useState("");
@@ -18,6 +20,10 @@ const SettingsPanel = () => {
   const [newName, setNewName] = useState("");
   const [newPercent, setNewPercent] = useState("");
   const [newSocid, setNewSocid] = useState("");
+
+  // Aisle labels
+  const [aisleList, setAisleList] = useState("A, B, C, D, E, F");
+  const [generatingAisles, setGeneratingAisles] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -154,6 +160,49 @@ const SettingsPanel = () => {
           <strong> 11354 (57 × 32 mm)</strong> et désactivez tout
           « adapter à la page » pour éviter l'impression sur 2 étiquettes.
         </p>
+      </div>
+
+      {/* Aisle QR labels */}
+      <div className="border-t border-border pt-5 space-y-3">
+        <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+          Étiquettes QR d'allées
+        </h3>
+        <p className="text-xs text-muted-foreground">
+          Imprimez un QR code par allée à coller en rayon. Scanner ce QR depuis
+          l'app activera l'allée pour pré-remplir l'emplacement des produits.
+        </p>
+        <div className="space-y-2">
+          <label className="text-xs font-semibold">Liste des allées (séparées par virgule)</label>
+          <Input
+            value={aisleList}
+            onChange={(e) => setAisleList(e.target.value)}
+            placeholder="A, B, C, D..."
+            className="touch-target text-sm"
+          />
+        </div>
+        <Button
+          onClick={async () => {
+            const items = aisleList.split(",").map((s) => s.trim()).filter(Boolean);
+            if (items.length === 0) {
+              toast.error("Indiquez au moins une allée");
+              return;
+            }
+            setGeneratingAisles(true);
+            try {
+              await generateAisleLabelsPdf(items);
+            } catch (e: any) {
+              toast.error(e?.message || "Erreur génération PDF");
+            } finally {
+              setGeneratingAisles(false);
+            }
+          }}
+          disabled={generatingAisles}
+          className="w-full touch-target gap-2"
+          variant="outline"
+        >
+          {generatingAisles ? <Loader2 size={16} className="animate-spin" /> : <QrCode size={16} />}
+          Générer le PDF des QR allées
+        </Button>
       </div>
 
       {/* Supplier discounts */}
