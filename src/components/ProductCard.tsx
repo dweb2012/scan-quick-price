@@ -204,26 +204,34 @@ const StockEditor = ({ product }: { product: DolibarrProduct }) => {
 const LocationEditor = ({
   product,
   open: openProp,
-  initialValue,
+  initialAisle,
+  initialSpot,
   onClose,
 }: {
   product: DolibarrProduct;
   open?: boolean;
-  initialValue?: string;
+  initialAisle?: string;
+  initialSpot?: string;
   onClose?: () => void;
 }) => {
   const opts = product.array_options || {};
+  const activeAisle = useActiveAisle();
+  const initialParsed = parseEmplacement(opts.options_emplacement);
   const [open, setOpen] = useState(false);
-  const [value, setValue] = useState(opts.options_emplacement || "");
+  const [aisle, setAisle] = useState<string>(
+    initialParsed.aisle || activeAisle || ""
+  );
+  const [spot, setSpot] = useState<string>(initialParsed.spot || "");
   const [saving, setSaving] = useState(false);
 
   const isOpen = openProp ?? open;
 
   useEffect(() => {
-    if (openProp && initialValue !== undefined) {
-      setValue(initialValue);
+    if (openProp) {
+      if (initialAisle !== undefined) setAisle(initialAisle);
+      if (initialSpot !== undefined) setSpot(initialSpot);
     }
-  }, [openProp, initialValue]);
+  }, [openProp, initialAisle, initialSpot]);
 
   const handleClose = () => {
     setOpen(false);
@@ -233,6 +241,7 @@ const LocationEditor = ({
   const handleSave = async () => {
     setSaving(true);
     try {
+      const value = formatEmplacement(aisle, spot);
       await updateProductExtrafields(product.id, { options_emplacement: value });
       toast.success("Emplacement mis à jour");
       handleClose();
@@ -259,13 +268,27 @@ const LocationEditor = ({
           <X size={18} />
         </button>
       </div>
-      <Input
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="Ex: Allée 3, Étagère B2"
-        className="touch-target text-base"
-        autoFocus
-      />
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground font-medium">Allée</label>
+          <Input
+            value={aisle}
+            onChange={(e) => setAisle(e.target.value)}
+            placeholder="Ex: A1"
+            className="touch-target text-base"
+            autoFocus
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground font-medium">Emplacement</label>
+          <Input
+            value={spot}
+            onChange={(e) => setSpot(e.target.value)}
+            placeholder="Ex: Étagère B2"
+            className="touch-target text-base"
+          />
+        </div>
+      </div>
       <Button
         onClick={handleSave}
         disabled={saving}
