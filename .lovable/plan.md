@@ -1,31 +1,72 @@
-Je vais corriger la génération d’étiquette pour que le PDF corresponde réellement au format papier choisi par le pilote, au lieu de toujours envoyer une page PDF portrait.
+## Mode "Allée" via QR Code
 
-Plan de correction :
+Objectif : permettre de scanner un QR code collé sur chaque allée (A, B, C…) pour que l'app sache où vous êtes, puis enchaîner les scans produits avec l'allée pré-renseignée.
 
-1. Séparer deux notions dans le code
-   - Format papier PDF : dimensions exactes de la page envoyée à l’imprimante.
-   - Sens de lecture du contenu : portrait ou paysage.
+---
 
-2. Modifier la génération PDF DYMO 30334
-   - En mode portrait : générer une page PDF strictement en 32 × 57 mm.
-   - En mode paysage : générer une page PDF strictement en 57 × 32 mm.
-   - Supprimer la rotation artificielle actuelle quand elle n’est pas nécessaire, car elle peut laisser une boîte PDF/zone image interprétée trop grande par le pilote.
-   - Garder tous les éléments à l’intérieur des marges : référence, emplacement, libellé sur 2 lignes, code-barres, prix HT et prix remisé.
+### 1. Format des QR codes d'allée
 
-3. Recalculer automatiquement le layout selon le format
-   - Largeur/hauteur utiles recalculées à partir de la page réelle.
-   - Code-barres adapté au format choisi pour ne pas dépasser.
-   - Libellé et emplacement tronqués proprement si nécessaire.
-   - Prix placés en bas sans débordement.
+Convention dédiée pour distinguer un QR allée d'un code-barres produit :
 
-4. Ajuster le texte des paramètres
-   - Remplacer l’explication actuelle qui dit que le PDF est toujours envoyé en portrait.
-   - Expliquer que l’option doit correspondre au réglage papier du pilote DYMO :
-     - Portrait = page PDF 32 × 57 mm
-     - Paysage = page PDF 57 × 32 mm
+```
+CHR-AISLE:A
+CHR-AISLE:B12
+CHR-AISLE:Frigo-1
+```
 
-5. Vérification
-   - Lancer le build/typecheck si disponible.
-   - Vérifier que le PDF généré reste sur une seule page et que les dimensions changent bien selon le choix portrait/paysage.
+Le préfixe `CHR-AISLE:` est détecté côté app, le reste est libre (lettre, numéro, nom).
 
-Détail technique : le problème vient probablement du fait que les deux options actuelles produisent la même page PDF physique 32 × 57 mm, avec seulement le contenu pivoté. Si le pilote DYMO est configuré en 57 × 32 mm, il peut interpréter cette page comme trop haute/large et la répartir sur deux étiquettes. La correction consiste à faire correspondre la taille réelle du PDF à l’orientation sélectionnée.
+Un petit générateur PDF d'étiquettes d'allée (A4, plusieurs QR par page) sera ajouté dans **Paramètres → Étiquettes d'allées** pour imprimer le jeu complet en une fois.
+
+---
+
+### 2. Comportement dans le scanner
+
+Quand le scanner détecte un code :
+
+- Si le code commence par `CHR-AISLE:` → on entre en **mode allée active** (pas de recherche produit).
+  - Bandeau persistant en haut : `📍 Allée A — Changer / Quitter`
+  - L'allée est mémorisée en `sessionStorage` (oubliée à la fermeture).
+- Sinon → recherche produit normale (comportement actuel inchangé).
+
+---
+
+### 3. Effet sur la fiche produit
+
+Quand une allée est active et qu'un produit est affiché :
+
+- Bouton supplémentaire **"Ranger ici (Allée A)"** à côté de "Modifier emplacement".
+  - Un clic = enregistre `options_emplacement = "A"` (ou `"A / <emplacement existant détaillé>"` au choix — voir question ci-dessous).
+- Le champ "Modifier emplacement" est **pré-rempli avec l'allée active** comme préfixe, l'utilisateur n'a plus qu'à compléter (ex : `A - Étagère 3`).
+
+---
+
+### 4. Historique enrichi
+
+Chaque scan dans l'historique mémorise l'allée active au moment du scan → permet plus tard de faire un audit "qu'est-ce qui a été scanné dans l'allée B aujourd'hui".
+
+---
+
+### 5. Détails techniques
+
+- **`src/lib/aisle.ts`** (nouveau) : helpers `parseAisleCode()`, `getActiveAisle()`, `setActiveAisle()`, `clearActiveAisle()` (sessionStorage).
+- **`src/components/BarcodeScanner.tsx`** : intercepter le code avant `onScan`, si préfixe allée → setActiveAisle + toast, sinon flux normal.
+- **`src/components/AisleBanner.tsx`** (nouveau) : bandeau affichant l'allée active avec bouton "Quitter".
+- **`src/pages/Index.tsx`** : afficher `<AisleBanner>` sous la TopBar quand une allée est active.
+- **`src/components/ProductCard.tsx`** : bouton "Ranger ici" + pré-remplissage du `LocationEditor` avec l'allée active.
+- **`src/lib/history.ts`** : ajouter `aisle?: string` à l'item d'historique.
+- **`src/components/SettingsPanel.tsx`** : section "Étiquettes d'allées" → input liste `A,B,C,D,...` + bouton "Générer PDF" (jsPDF + qrcode lib déjà disponibles, format A4, 8 QR par page avec libellé sous chaque code).
+
+Aucune migration DB nécessaire — l'allée est stockée côté client (session) et incluse dans le champ `options_emplacement` Dolibarr existant.
+
+---
+
+### Question à clarifier avant implémentation
+
+Quand vous cliquez sur "Ranger ici (Allée A)" sur un produit qui a déjà un emplacement détaillé (ex : `Étagère 3, Bac 2`), je dois :
+
+1. **Remplacer** par `A` tout court
+2. **Préfixer** → `A - Étagère 3, Bac 2`
+3. **Ouvrir l'éditeur** pré-rempli `A - ` pour que vous complétiez à la main
+
+Je propose l'option **3** (la plus sûre, pas d'écrasement accidentel), à confirmer.
