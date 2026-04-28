@@ -49,6 +49,41 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Server-side validation: endpoint must target the Dolibarr API path and stay
+    // within a reasonable size, blocking attempts to call arbitrary upstream URLs.
+    if (!endpoint.startsWith("/api/index.php/") || endpoint.length > 2000) {
+      console.warn("dolibarr-proxy rejected endpoint:", endpoint);
+      return new Response(
+        JSON.stringify({ ok: false, error: "Endpoint invalide" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Defense in depth: inspect any sqlfilters query param. After URL-decoding,
+    // values between single quotes must NOT contain quotes, semicolons, backslashes,
+    // or SQL comment markers — those indicate a SQL injection attempt.
+    try {
+      const qIndex = endpoint.indexOf("?");
+      if (qIndex >= 0) {
+        const qs = new URLSearchParams(endpoint.slice(qIndex + 1));
+        const sqlFilters = qs.get("sqlfilters");
+        if (sqlFilters) {
+          const innerValues = [...sqlFilters.matchAll(/'([^']*)'/g)].map((m) => m[1]);
+          for (const v of innerValues) {
+            if (/['"\\;]|--|\/\*|\*\//.test(v)) {
+              console.warn("dolibarr-proxy rejected sqlfilters payload:", sqlFilters);
+              return new Response(
+                JSON.stringify({ ok: false, error: "Filtre invalide" }),
+                { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
+          }
+        }
+      }
+    } catch (_) {
+      // If parsing fails, fall through — upstream will surface its own error.
+    }
+
     const allowedMethods = ["GET", "POST", "PUT", "DELETE"];
     if (!allowedMethods.includes(method)) {
       return new Response(JSON.stringify({ ok: false, error: "Méthode non autorisée" }), {
