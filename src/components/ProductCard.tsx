@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { ScanLine, Package, Tag, Truck, MapPin, Loader2, RotateCcw, Edit2, Plus, Minus, Save, X, Warehouse, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { printProductLabel } from "@/lib/labelPdf";
+import { useActiveAisle } from "@/hooks/use-active-aisle";
 
 interface ProductCardProps {
   product: DolibarrProduct;
@@ -199,18 +200,41 @@ const StockEditor = ({ product }: { product: DolibarrProduct }) => {
   );
 };
 
-const LocationEditor = ({ product }: { product: DolibarrProduct }) => {
+const LocationEditor = ({
+  product,
+  open: openProp,
+  initialValue,
+  onClose,
+}: {
+  product: DolibarrProduct;
+  open?: boolean;
+  initialValue?: string;
+  onClose?: () => void;
+}) => {
   const opts = product.array_options || {};
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(opts.options_emplacement || "");
   const [saving, setSaving] = useState(false);
+
+  const isOpen = openProp ?? open;
+
+  useEffect(() => {
+    if (openProp && initialValue !== undefined) {
+      setValue(initialValue);
+    }
+  }, [openProp, initialValue]);
+
+  const handleClose = () => {
+    setOpen(false);
+    onClose?.();
+  };
 
   const handleSave = async () => {
     setSaving(true);
     try {
       await updateProductExtrafields(product.id, { options_emplacement: value });
       toast.success("Emplacement mis à jour");
-      setOpen(false);
+      handleClose();
     } catch (e: any) {
       toast.error(e.message || "Erreur mise à jour emplacement");
     } finally {
@@ -218,7 +242,7 @@ const LocationEditor = ({ product }: { product: DolibarrProduct }) => {
     }
   };
 
-  if (!open) {
+  if (!isOpen) {
     return (
       <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-1 touch-target">
         <Edit2 size={14} /> Modifier emplacement
@@ -230,7 +254,7 @@ const LocationEditor = ({ product }: { product: DolibarrProduct }) => {
     <div className="w-full max-w-sm bg-card rounded-xl p-4 shadow border border-border space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-sm">Emplacement</h3>
-        <button onClick={() => setOpen(false)} className="text-muted-foreground">
+        <button onClick={handleClose} className="text-muted-foreground">
           <X size={18} />
         </button>
       </div>
@@ -258,6 +282,9 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const [discounted, setDiscounted] = useState<{ price: number; discount: number } | null>(null);
   const [promos, setPromos] = useState<PromoPrice[]>([]);
   const [printing, setPrinting] = useState(false);
+  const activeAisle = useActiveAisle();
+  const [aisleEditorOpen, setAisleEditorOpen] = useState(false);
+  const [aisleEditorInitial, setAisleEditorInitial] = useState<string>("");
 
   const handlePrint = async () => {
     setPrinting(true);
@@ -279,6 +306,20 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const marque = opts.options_marque || "";
   const fournisseur = product.supplierName || opts.options_fournisseur || "";
   const emplacement = opts.options_emplacement || "";
+
+  const handleStoreHere = () => {
+    if (!activeAisle) return;
+    const existing = (emplacement || "").trim();
+    // Option 3: pre-fill editor with "<aisle> - <existing>" so user confirms / edits
+    const prefix = `${activeAisle} - `;
+    const initial = existing
+      ? existing.startsWith(prefix) || existing === activeAisle
+        ? existing
+        : `${prefix}${existing}`
+      : prefix;
+    setAisleEditorInitial(initial);
+    setAisleEditorOpen(true);
+  };
   const primaryPromo = promos.reduce<PromoPrice | null>((bestPromo, promo) => {
     if (promo.price == null) return bestPromo;
     if (!bestPromo || promo.price < (bestPromo.price ?? Number.POSITIVE_INFINITY)) {
@@ -380,10 +421,29 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
       <StockBadge stock={product.stock_reel ?? 0} />
 
       {/* Stock & Location editors */}
-      <div className="flex gap-2 w-full max-w-sm">
+      <div className="flex gap-2 w-full max-w-sm flex-wrap">
         <StockEditor product={product} />
         <LocationEditor product={product} />
+        {activeAisle && (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleStoreHere}
+            className="gap-1 touch-target"
+          >
+            <MapPin size={14} /> Ranger ici (Allée {activeAisle})
+          </Button>
+        )}
       </div>
+
+      {aisleEditorOpen && (
+        <LocationEditor
+          product={product}
+          open={aisleEditorOpen}
+          initialValue={aisleEditorInitial}
+          onClose={() => setAisleEditorOpen(false)}
+        />
+      )}
 
       <Button
         onClick={handlePrint}
