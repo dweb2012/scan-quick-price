@@ -49,6 +49,20 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Server-side validation: endpoint must start with /api/index.php/ and not contain
+    // SQL meta-characters or unescaped quotes that could indicate injection attempts.
+    if (
+      !endpoint.startsWith("/api/index.php/") ||
+      endpoint.length > 2000 ||
+      /['"\\;]|--|\/\*|\*\//.test(decodeURIComponent(endpoint).replace(/%27|%22/gi, "'"))
+    ) {
+      console.warn("dolibarr-proxy rejected suspicious endpoint:", endpoint);
+      return new Response(
+        JSON.stringify({ ok: false, error: "Endpoint invalide" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const allowedMethods = ["GET", "POST", "PUT", "DELETE"];
     if (!allowedMethods.includes(method)) {
       return new Response(JSON.stringify({ ok: false, error: "Méthode non autorisée" }), {
