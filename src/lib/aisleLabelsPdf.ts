@@ -2,24 +2,48 @@ import jsPDF from "jspdf";
 import QRCode from "qrcode";
 import { buildAisleQrPayload } from "./aisle";
 
+export type AisleLabelOrientation = "portrait" | "landscape";
+export type AisleLabelPerPage = 4 | 6 | 8;
+
+export interface AisleLabelOptions {
+  orientation?: AisleLabelOrientation;
+  perPage?: AisleLabelPerPage;
+}
+
+/** Grid (cols x rows) for each per-page count, depending on orientation. */
+function getGrid(perPage: AisleLabelPerPage, orientation: AisleLabelOrientation): { cols: number; rows: number } {
+  if (orientation === "portrait") {
+    if (perPage === 4) return { cols: 2, rows: 2 };
+    if (perPage === 6) return { cols: 2, rows: 3 };
+    return { cols: 2, rows: 4 }; // 8
+  } else {
+    if (perPage === 4) return { cols: 2, rows: 2 };
+    if (perPage === 6) return { cols: 3, rows: 2 };
+    return { cols: 4, rows: 2 }; // 8
+  }
+}
+
 /**
  * Generate a printable A4 PDF with QR codes for a list of aisles.
- * Layout: 2 columns x 4 rows = 8 labels per A4 page.
+ * Layout configurable: orientation (portrait/landscape) and per page (4/6/8).
  */
-export async function generateAisleLabelsPdf(aisles: string[]) {
+export async function generateAisleLabelsPdf(
+  aisles: string[],
+  options: AisleLabelOptions = {},
+) {
+  const orientation: AisleLabelOrientation = options.orientation ?? "portrait";
+  const perPage: AisleLabelPerPage = options.perPage ?? 8;
   const items = aisles.map((a) => a.trim()).filter(Boolean);
   if (items.length === 0) throw new Error("Aucune allée fournie");
 
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const pageW = 210;
-  const pageH = 297;
-  const cols = 2;
-  const rows = 4;
+  const doc = new jsPDF({ orientation, unit: "mm", format: "a4" });
+  const pageW = orientation === "portrait" ? 210 : 297;
+  const pageH = orientation === "portrait" ? 297 : 210;
+  const { cols, rows } = getGrid(perPage, orientation);
   const marginX = 10;
   const marginY = 10;
   const cellW = (pageW - marginX * 2) / cols;
   const cellH = (pageH - marginY * 2) / rows;
-  const perPage = cols * rows;
 
   for (let i = 0; i < items.length; i++) {
     const name = items[i];
