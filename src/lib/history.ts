@@ -1,4 +1,5 @@
 import { DolibarrProduct, getDiscountedPrice, getPriceHT } from "./dolibarr";
+import { getActiveAisle } from "./aisle";
 
 export interface HistoryItem {
   id: number;
@@ -7,6 +8,7 @@ export interface HistoryItem {
   prixPublic: number;
   prixRemise: number | null;
   timestamp: Date;
+  aisle?: string | null;
 }
 
 const MAX_HISTORY = 20;
@@ -22,6 +24,7 @@ export function addToHistory(product: DolibarrProduct) {
     prixPublic: getPriceHT(product),
     prixRemise: discounted?.price ?? null,
     timestamp: new Date(),
+    aisle: getActiveAisle(),
   };
   history = [item, ...history.filter((h) => h.id !== item.id)].slice(0, MAX_HISTORY);
   listeners.forEach((l) => l());

@@ -4,6 +4,8 @@ import { Camera, Keyboard, X, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { autocompleteProducts, DolibarrProduct } from "@/lib/dolibarr";
+import { parseAisleCode, setActiveAisle } from "@/lib/aisle";
+import { toast } from "sonner";
 
 interface BarcodeScannerProps {
   onScan: (code: string) => void;
@@ -30,6 +32,20 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
     }
     setScanning(false);
   }, []);
+
+  const handleDecoded = useCallback(
+    (decoded: string) => {
+      const aisle = parseAisleCode(decoded);
+      if (aisle) {
+        setActiveAisle(aisle);
+        if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+        toast.success(`Allée ${aisle} activée`);
+        return;
+      }
+      onScan(decoded);
+    },
+    [onScan]
+  );
 
   const startScanner = useCallback(() => {
     setCameraError(null);
@@ -61,7 +77,7 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
         (decodedText) => {
           if (navigator.vibrate) navigator.vibrate(100);
           stopScanner();
-          onScan(decodedText);
+          handleDecoded(decodedText);
         },
         () => {}
       ).catch((err: any) => {
@@ -80,7 +96,7 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
           : "Impossible d'accéder à la caméra. Vérifiez les permissions."
       );
     }
-  }, [onScan, stopScanner]);
+  }, [handleDecoded, stopScanner]);
 
   useEffect(() => {
     return () => {
@@ -121,7 +137,7 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
     if (val) {
       setSuggestions([]);
       if (navigator.vibrate) navigator.vibrate(50);
-      onScan(val);
+      handleDecoded(val);
       setManualValue("");
     }
   };

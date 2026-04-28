@@ -6,6 +6,7 @@ import ProductCard from "@/components/ProductCard";
 import HistoryPanel from "@/components/HistoryPanel";
 import SettingsPanel from "@/components/SettingsPanel";
 import AdminUsersPanel from "@/components/AdminUsersPanel";
+import AisleBanner from "@/components/AisleBanner";
 import { searchProduct, DolibarrProduct, getSettings } from "@/lib/dolibarr";
 import { addToHistory } from "@/lib/history";
 import { cacheProduct, findCachedProduct } from "@/lib/productCache";
@@ -125,6 +126,7 @@ const Index = () => {
   return (
     <div className="flex flex-col h-[100dvh] bg-background overflow-hidden">
       <TopBar online={online} />
+      <AisleBanner />
       <main className="flex-1 flex flex-col overflow-hidden">{renderContent()}</main>
       <BottomNav active={tab} onChange={setTab} showAdmin={isAdmin} />
     </div>
