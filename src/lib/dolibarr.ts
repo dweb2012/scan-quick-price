@@ -70,6 +70,29 @@ function normalizeProduct(rawProduct: any): DolibarrProduct {
   };
 }
 
+/**
+ * Sanitize a value before interpolating it into a Dolibarr `sqlfilters` clause.
+ * Strips characters that could break out of the quoted string or inject SQL:
+ *   - single/double quotes
+ *   - backslashes
+ *   - SQL comment markers (`--`, `/*`, `*​/`)
+ *   - statement terminators (`;`)
+ *   - control / non-printable characters
+ * Also enforces a hard length cap to avoid abusive payloads.
+ */
+function sanitizeSqlFilterValue(value: string): string {
+  if (typeof value !== "string") return "";
+  return value
+    .replace(/['"\\;]/g, "")
+    .replace(/--/g, "")
+    .replace(/\/\*/g, "")
+    .replace(/\*\//g, "")
+    // strip control chars (incl. NULL, newlines, tabs)
+    .replace(/[\x00-\x1F\x7F]/g, "")
+    .trim()
+    .slice(0, 100);
+}
+
 // In-memory cache to avoid repeated DB reads during a session
 let cachedSettings: DolibarrSettings | null = null;
 
@@ -276,8 +299,11 @@ async function resolveSupplierName(supplierId: string): Promise<string> {
 }
 
 export async function searchProduct(value: string): Promise<DolibarrProduct | null> {
+  const safeValue = sanitizeSqlFilterValue(value);
+  if (!safeValue) return null;
+
   const byBarcode = await dolibarrProxy(
-    `/api/index.php/products?sqlfilters=${encodeURIComponent(`(barcode:=:'${value}') AND (t.tosell:=:1)`)}&limit=1`,
+    `/api/index.php/products?sqlfilters=${encodeURIComponent(`(barcode:=:'${safeValue}') AND (t.tosell:=:1)`)}&limit=1`,
     "GET"
   );
   if (Array.isArray(byBarcode) && byBarcode.length > 0) {
@@ -287,7 +313,7 @@ export async function searchProduct(value: string): Promise<DolibarrProduct | nu
   }
 
   const byRef = await dolibarrProxy(
-    `/api/index.php/products?sqlfilters=${encodeURIComponent(`(ref:=:'${value}') AND (t.tosell:=:1)`)}&limit=1`,
+    `/api/index.php/products?sqlfilters=${encodeURIComponent(`(ref:=:'${safeValue}') AND (t.tosell:=:1)`)}&limit=1`,
     "GET"
   );
   if (Array.isArray(byRef) && byRef.length > 0) {
@@ -380,7 +406,7 @@ export async function getProductPromos(productId: number): Promise<PromoPrice[]>
  * Uses LIKE filter on ref and label fields.
  */
 export async function autocompleteProducts(query: string): Promise<DolibarrProduct[]> {
-  const trimmedQuery = query.trim();
+  const trimmedQuery = sanitizeSqlFilterValue(query);
   if (trimmedQuery.length < 2) return [];
 
   const buildSqlFilterUrl = (field: "ref" | "label") => {
