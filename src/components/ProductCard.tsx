@@ -470,9 +470,24 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
             <div className="flex items-center gap-2 text-sm">
               <MapPin size={16} className="text-primary shrink-0" />
               <span className="text-muted-foreground">Allée :</span>
-              <span className="font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-md">
+              <span
+                className={
+                  isValidAisle(productAisle)
+                    ? "font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-md"
+                    : "font-bold bg-stock-low/10 text-stock-low px-2 py-0.5 rounded-md"
+                }
+                title={formatAisleLabel(productAisle) || productAisle}
+              >
                 {productAisle}
+                {!isValidAisle(productAisle) && (
+                  <span className="ml-1 text-[10px] uppercase">Hors liste</span>
+                )}
               </span>
+              {isValidAisle(productAisle) && (
+                <span className="text-xs text-muted-foreground">
+                  {getAisleEntry(productAisle)?.zoneName}
+                </span>
+              )}
               {aisleMismatch && (
                 <span className="ml-auto inline-flex items-center gap-1 text-xs text-stock-low font-medium">
                   <AlertTriangle size={12} /> Pas dans l'allée scannée
