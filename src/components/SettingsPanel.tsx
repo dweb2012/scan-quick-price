@@ -181,13 +181,62 @@ const SettingsPanel = () => {
           « Allée / Emplacement » (ex. « A1 / Étagère 3 »).
         </p>
         <div className="space-y-2">
-          <label className="text-xs font-semibold">Liste des allées (séparées par virgule)</label>
-          <Input
-            value={aisleList}
-            onChange={(e) => setAisleList(e.target.value)}
-            placeholder="A, B, C, D..."
-            className="touch-target text-sm"
-          />
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold">
+              Zones à imprimer ({Array.from(selectedZones).reduce((acc, code) => {
+                const z = AISLE_ZONES.find((zz) => zz.code === code);
+                return acc + (z?.range ? z.range[1] - z.range[0] + 1 : 1);
+              }, 0)} QR)
+            </label>
+            <div className="flex gap-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                onClick={() => setSelectedZones(new Set(AISLE_ZONES.map((z) => z.code)))}
+              >
+                Tout
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                onClick={() => setSelectedZones(new Set())}
+              >
+                Aucun
+              </Button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 p-2 rounded-lg border border-border bg-muted/30">
+            {AISLE_ZONES.map((z) => {
+              const count = z.range ? z.range[1] - z.range[0] + 1 : 1;
+              const checked = selectedZones.has(z.code);
+              return (
+                <label
+                  key={z.code}
+                  className="flex items-center gap-2 text-xs cursor-pointer touch-target px-1"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(v) => {
+                      setSelectedZones((prev) => {
+                        const next = new Set(prev);
+                        if (v) next.add(z.code);
+                        else next.delete(z.code);
+                        return next;
+                      });
+                    }}
+                  />
+                  <span className="font-semibold">{z.code}</span>
+                  <span className="text-muted-foreground truncate">
+                    {z.name} ({count})
+                  </span>
+                </label>
+              );
+            })}
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
@@ -227,14 +276,14 @@ const SettingsPanel = () => {
         </div>
         <Button
           onClick={async () => {
-            const items = aisleList.split(",").map((s) => s.trim()).filter(Boolean);
-            if (items.length === 0) {
-              toast.error("Indiquez au moins une allée");
+            const entries = expandAisles().filter((e) => selectedZones.has(e.zoneCode));
+            if (entries.length === 0) {
+              toast.error("Sélectionnez au moins une zone");
               return;
             }
             setGeneratingAisles(true);
             try {
-              await generateAisleLabelsPdf(items, {
+              await generateAisleLabelsPdf(entries, {
                 orientation: aisleOrientation,
                 perPage: aislePerPage,
               });
