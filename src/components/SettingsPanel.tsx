@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Plus, Trash2, LogOut } from "lucide-react";
 import { QrCode } from "lucide-react";
 import { generateAisleLabelsPdf, AisleLabelOrientation, AisleLabelPerPage } from "@/lib/aisleLabelsPdf";
+import { AISLE_ZONES, expandAisles, getAisleGroups } from "@/lib/aisleCatalog";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const SettingsPanel = () => {
   const [baseUrl, setBaseUrl] = useState("");
@@ -22,10 +24,12 @@ const SettingsPanel = () => {
   const [newSocid, setNewSocid] = useState("");
 
   // Aisle labels
-  const [aisleList, setAisleList] = useState("A, B, C, D, E, F");
   const [generatingAisles, setGeneratingAisles] = useState(false);
   const [aisleOrientation, setAisleOrientation] = useState<AisleLabelOrientation>("portrait");
   const [aislePerPage, setAislePerPage] = useState<AisleLabelPerPage>(8);
+  const [selectedZones, setSelectedZones] = useState<Set<string>>(
+    () => new Set(AISLE_ZONES.map((z) => z.code))
+  );
 
   useEffect(() => {
     Promise.all([
