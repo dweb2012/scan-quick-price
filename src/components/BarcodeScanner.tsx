@@ -57,18 +57,37 @@ function validateDecoded(text: string, format: number | undefined): boolean {
 }
 
 // ---------- Camera selection ----------
-async function pickBackCameraId(): Promise<string | null> {
+async function listCameras(): Promise<Array<{ id: string; label: string }>> {
   try {
     const cams = await Html5Qrcode.getCameras();
-    if (!cams || cams.length === 0) return null;
-    const backs = cams.filter((c) => /back|rear|environment|arrière|arriere/i.test(c.label));
-    if (backs.length === 0) return cams[cams.length - 1].id; // dernière souvent = principale arrière
-    // Éviter ultra grand-angle / téléobjectif (mauvaise mise au point de près).
-    const main =
-      backs.find((c) => !/wide|ultra|tele|zoom|0\.5x|2x|3x/i.test(c.label)) || backs[0];
-    return main.id;
+    return cams || [];
   } catch {
-    return null;
+    return [];
+  }
+}
+
+function pickCameraId(
+  cams: Array<{ id: string; label: string }>,
+  facing: "back" | "front"
+): string | null {
+  if (!cams.length) return null;
+  const backRe = /back|rear|environment|arrière|arriere|world/i;
+  const frontRe = /front|user|face|selfie|facetime/i;
+  if (facing === "back") {
+    const backs = cams.filter((c) => backRe.test(c.label));
+    if (backs.length) {
+      const main =
+        backs.find((c) => !/wide|ultra|tele|zoom|0\.5x|2x|3x/i.test(c.label)) || backs[0];
+      return main.id;
+    }
+    // Pas de label explicite : si une seule caméra, on la prend ; sinon on évite celles "front".
+    if (cams.length === 1) return cams[0].id;
+    const notFront = cams.filter((c) => !frontRe.test(c.label));
+    return (notFront[notFront.length - 1] || cams[cams.length - 1]).id;
+  } else {
+    const fronts = cams.filter((c) => frontRe.test(c.label));
+    if (fronts.length) return fronts[0].id;
+    return cams[0].id;
   }
 }
 
@@ -228,13 +247,20 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
         /iPad|iPhone|iPod/.test(navigator.userAgent) ||
         (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
-      let cameraConfig: any;
-      if (useFacing === "back") {
-        const camId = await pickBackCameraId();
-        cameraConfig = camId ? { deviceId: { exact: camId } } : { facingMode: "environment" };
-      } else {
-        cameraConfig = { facingMode: "user" };
-      }
+      // S'assurer d'avoir l'autorisation pour récupérer les labels des caméras.
+      try {
+        const tmp = await navigator.mediaDevices.getUserMedia({ video: true });
+        tmp.getTracks().forEach((t) => t.stop());
+      } catch {}
+
+      const cams = await listCameras();
+      const camId = pickCameraId(cams, useFacing);
+      console.log("[Scanner] cameras:", cams.map((c) => `${c.label || "(no label)"} [${c.id.slice(0, 8)}]`));
+      console.log(`[Scanner] facing=${useFacing} → selected=${camId?.slice(0, 8) || "(facingMode fallback)"}`);
+
+      const cameraConfig: any = camId
+        ? { deviceId: { exact: camId } }
+        : { facingMode: useFacing === "back" ? { exact: "environment" } : "user" };
 
       await scanner.start(
         cameraConfig,
