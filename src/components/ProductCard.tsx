@@ -403,6 +403,8 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const [aisleEditorOpen, setAisleEditorOpen] = useState(false);
   const [aisleEditorInitialAisle, setAisleEditorInitialAisle] = useState<string>("");
   const [aisleEditorInitialSpot, setAisleEditorInitialSpot] = useState<string>("");
+  const [storing, setStoring] = useState(false);
+  const [emplacementOverride, setEmplacementOverride] = useState<string | null>(null);
 
   const handlePrint = async () => {
     setPrinting(true);
@@ -423,18 +425,31 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const opts = product.array_options || {};
   const marque = opts.options_marque || "";
   const fournisseur = product.supplierName || opts.options_fournisseur || "";
-  const emplacement = opts.options_emplacement || "";
+  const emplacement = emplacementOverride ?? opts.options_emplacement ?? "";
   const parsed = parseEmplacement(emplacement);
   const productAisle = parsed.aisle;
   const productSpot = parsed.spot;
   const aisleMismatch =
     !!productAisle && !!activeAisle && productAisle !== activeAisle;
 
-  const handleStoreHere = () => {
-    if (!activeAisle) return;
-    setAisleEditorInitialAisle(activeAisle);
-    setAisleEditorInitialSpot(productSpot || "");
-    setAisleEditorOpen(true);
+  const handleStoreHere = async () => {
+    if (!activeAisle || storing) return;
+    setStoring(true);
+    try {
+      const value = formatEmplacement(activeAisle, productSpot);
+      await updateProductExtrafields(product.id, { options_emplacement: value });
+      // Mutation locale pour refléter immédiatement la nouvelle valeur
+      product.array_options = {
+        ...(product.array_options || {}),
+        options_emplacement: value,
+      };
+      setEmplacementOverride(value);
+      toast.success(`Rangé dans ${activeAisle}`);
+    } catch (e: any) {
+      toast.error(e?.message || "Erreur mise à jour emplacement");
+    } finally {
+      setStoring(false);
+    }
   };
   const primaryPromo = promos.reduce<PromoPrice | null>((bestPromo, promo) => {
     if (promo.price == null) return bestPromo;
@@ -574,9 +589,11 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
             variant="default"
             size="sm"
             onClick={handleStoreHere}
+            disabled={storing}
             className="gap-1 touch-target"
           >
-            <MapPin size={14} /> Ranger ici ({activeAisle})
+            {storing ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
+            Ranger dans ({activeAisle})
           </Button>
         )}
       </div>
