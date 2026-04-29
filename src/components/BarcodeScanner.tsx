@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Html5Qrcode, Html5QrcodeSupportedFormats, Html5QrcodeScanType } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { Camera, Keyboard, X, Loader2, Search, Flashlight, FlashlightOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
