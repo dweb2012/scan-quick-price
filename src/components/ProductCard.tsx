@@ -7,6 +7,105 @@ import { toast } from "sonner";
 import { printProductLabel } from "@/lib/labelPdf";
 import { useActiveAisle } from "@/hooks/use-active-aisle";
 import { parseEmplacement, formatEmplacement } from "@/lib/aisle";
+import { expandAisles, getAisleEntry, isValidAisle, formatAisleLabel, getAisleGroups } from "@/lib/aisleCatalog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const AisleCombobox = ({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const groups = getAisleGroups();
+  const currentEntry = getAisleEntry(value);
+  const isOutOfList = !!value && !currentEntry;
+
+  const triggerLabel = !value
+    ? "Choisir une allée…"
+    : currentEntry
+      ? currentEntry.label
+      : `${value} (Hors liste)`;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className={cn(
+            "w-full justify-between touch-target font-normal",
+            !value && "text-muted-foreground",
+            isOutOfList && "border-stock-low text-stock-low"
+          )}
+        >
+          <span className="truncate">{triggerLabel}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[--radix-popover-trigger-width] p-0 bg-popover z-50"
+        align="start"
+      >
+        <Command>
+          <CommandInput placeholder="Rechercher une allée…" className="h-10" />
+          <CommandList className="max-h-72">
+            <CommandEmpty>Aucune allée trouvée.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value="__none__"
+                onSelect={() => {
+                  onChange("");
+                  setOpen(false);
+                }}
+              >
+                <Check className={cn("mr-2 h-4 w-4", !value ? "opacity-100" : "opacity-0")} />
+                <span className="text-muted-foreground italic">Aucune allée</span>
+              </CommandItem>
+              {isOutOfList && (
+                <CommandItem
+                  value={value}
+                  onSelect={() => setOpen(false)}
+                >
+                  <Check className="mr-2 h-4 w-4 opacity-100" />
+                  <span className="text-stock-low">{value} (Hors liste — à réassigner)</span>
+                </CommandItem>
+              )}
+            </CommandGroup>
+            {groups.map((g) => (
+              <CommandGroup key={g.zoneCode} heading={g.zoneName}>
+                {g.entries.map((entry) => (
+                  <CommandItem
+                    key={entry.code}
+                    value={`${entry.code} ${entry.zoneName}`}
+                    onSelect={() => {
+                      onChange(entry.code);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        value.toUpperCase() === entry.code.toUpperCase() ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    <span className="font-semibold">{entry.code}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">{entry.zoneName}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 interface ProductCardProps {
   product: DolibarrProduct;
@@ -271,13 +370,7 @@ const LocationEditor = ({
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground font-medium">Allée</label>
-          <Input
-            value={aisle}
-            onChange={(e) => setAisle(e.target.value)}
-            placeholder="Ex: A1"
-            className="touch-target text-base"
-            autoFocus
-          />
+          <AisleCombobox value={aisle} onChange={setAisle} />
         </div>
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground font-medium">Emplacement</label>
