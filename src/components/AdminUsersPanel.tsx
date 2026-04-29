@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Plus, Trash2, Shield, User, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+import AdminUnknownProducts from "./AdminUnknownProducts";
 
 interface AppUser {
   id: string;
@@ -183,6 +184,8 @@ const AdminUsersPanel = () => {
           </div>
         ))}
       </div>
+
+      <AdminUnknownProducts />
     </div>
   );
 };
