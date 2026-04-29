@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Html5Qrcode } from "html5-qrcode";
-import { Camera, Keyboard, X, Loader2, Search } from "lucide-react";
+import { Html5Qrcode, Html5QrcodeSupportedFormats, Html5QrcodeScanType } from "html5-qrcode";
+import { Camera, Keyboard, X, Loader2, Search, Flashlight, FlashlightOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { autocompleteProducts, DolibarrProduct } from "@/lib/dolibarr";
@@ -12,6 +12,66 @@ interface BarcodeScannerProps {
   loading: boolean;
 }
 
+// ---------- Validation helpers ----------
+const NUMERIC_FORMATS = new Set([
+  Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.UPC_A,
+  Html5QrcodeSupportedFormats.UPC_E,
+]);
+
+function eanChecksumOk(code: string): boolean {
+  if (!/^\d+$/.test(code)) return false;
+  // Support EAN-13 (13), UPC-A (12), EAN-8 (8). UPC-E (8 incl. check) handled as-is via 8-digit rule.
+  if (![8, 12, 13].includes(code.length)) return false;
+  const digits = code.split("").map(Number);
+  const check = digits.pop() as number;
+  // For EAN-13 (12 data digits), weights from right are 3,1,3,1...
+  // For UPC-A (11 data digits), weights from right are 3,1,3,1...
+  // For EAN-8 (7 data digits), same alternating from right.
+  let sum = 0;
+  for (let i = digits.length - 1, w = 3; i >= 0; i--, w = w === 3 ? 1 : 3) {
+    sum += digits[i] * w;
+  }
+  const expected = (10 - (sum % 10)) % 10;
+  return expected === check;
+}
+
+function validateDecoded(text: string, format: number | undefined): boolean {
+  const t = (text || "").trim();
+  if (!t) return false;
+
+  // QR allée : déléguer à parseAisleCode (whitelist).
+  if (format === Html5QrcodeSupportedFormats.QR_CODE) {
+    if (isAislePayload(t)) return parseAisleCode(t) !== null;
+    return t.length >= 1;
+  }
+
+  if (format !== undefined && NUMERIC_FORMATS.has(format)) {
+    return eanChecksumOk(t);
+  }
+
+  // CODE_128 / CODE_39 fallback
+  if (t.length < 4) return false;
+  return /^[\x20-\x7E]+$/.test(t);
+}
+
+// ---------- Camera selection ----------
+async function pickBackCameraId(): Promise<string | null> {
+  try {
+    const cams = await Html5Qrcode.getCameras();
+    if (!cams || cams.length === 0) return null;
+    const backs = cams.filter((c) => /back|rear|environment|arrière|arriere/i.test(c.label));
+    if (backs.length === 0) return cams[cams.length - 1].id; // dernière souvent = principale arrière
+    // Éviter ultra grand-angle / téléobjectif (mauvaise mise au point de près).
+    const main =
+      backs.find((c) => !/wide|ultra|tele|zoom|0\.5x|2x|3x/i.test(c.label)) || backs[0];
+    return main.id;
+  } catch {
+    return null;
+  }
+}
+
 const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
   const [scanning, setScanning] = useState(false);
   const [manualMode, setManualMode] = useState(false);
@@ -19,22 +79,57 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<DolibarrProduct[]>([]);
   const [autocompleteLoading, setAutocompleteLoading] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
+
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerRef = useRef<string>("scanner-container");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Anti-doublon + double lecture
+  const candidateRef = useRef<{ value: string; count: number; ts: number } | null>(null);
+  const lastEmittedRef = useRef<{ value: string; ts: number } | null>(null);
+  const rejectStatsRef = useRef<{ count: number; firstTs: number; warned: boolean }>({
+    count: 0,
+    firstTs: 0,
+    warned: false,
+  });
+  const isStartingRef = useRef(false);
+
   const stopScanner = useCallback(async () => {
+    // Attendre la fin d'un démarrage en cours pour éviter de tuer un scanner non encore prêt.
+    if (isStartingRef.current) {
+      await new Promise((r) => setTimeout(r, 150));
+    }
     if (scannerRef.current) {
       try {
         await scannerRef.current.stop();
       } catch {}
+      try {
+        scannerRef.current.clear();
+      } catch {}
       scannerRef.current = null;
     }
     setScanning(false);
+    setTorchOn(false);
+    setTorchSupported(false);
+    candidateRef.current = null;
+    rejectStatsRef.current = { count: 0, firstTs: 0, warned: false };
   }, []);
 
-  const handleDecoded = useCallback(
+  const emit = useCallback(
     (decoded: string) => {
+      const now = Date.now();
+      // Anti-doublon global : ignorer même valeur dans 1500ms.
+      if (
+        lastEmittedRef.current &&
+        lastEmittedRef.current.value === decoded &&
+        now - lastEmittedRef.current.ts < 1500
+      ) {
+        return;
+      }
+      lastEmittedRef.current = { value: decoded, ts: now };
+
       if (isAislePayload(decoded)) {
         const aisle = parseAisleCode(decoded);
         if (aisle) {
@@ -52,56 +147,149 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
     [onScan]
   );
 
-  const startScanner = useCallback(() => {
+  const handleDecoded = useCallback(
+    (decodedText: string, result: any) => {
+      const format: number | undefined = result?.result?.format?.format;
+      const text = (decodedText || "").trim();
+
+      if (!validateDecoded(text, format)) {
+        // Suivi rejets
+        const now = Date.now();
+        const s = rejectStatsRef.current;
+        if (now - s.firstTs > 3000) {
+          s.firstTs = now;
+          s.count = 1;
+          s.warned = false;
+        } else {
+          s.count += 1;
+          if (s.count >= 8 && !s.warned) {
+            s.warned = true;
+            toast("Code illisible — rapprochez-vous ou nettoyez l'étiquette", {
+              duration: 2500,
+            });
+          }
+        }
+        return;
+      }
+
+      // QR : accepter immédiatement (CRC interne fiable).
+      if (format === Html5QrcodeSupportedFormats.QR_CODE) {
+        if (navigator.vibrate) navigator.vibrate(100);
+        stopScanner();
+        emit(text);
+        return;
+      }
+
+      // 1D : exiger 2 lectures identiques en <800ms.
+      const now = Date.now();
+      const cand = candidateRef.current;
+      if (cand && cand.value === text && now - cand.ts < 800) {
+        cand.count += 1;
+        cand.ts = now;
+        if (cand.count >= 2) {
+          if (navigator.vibrate) navigator.vibrate(100);
+          stopScanner();
+          emit(text);
+        }
+      } else {
+        candidateRef.current = { value: text, count: 1, ts: now };
+      }
+    },
+    [emit, stopScanner]
+  );
+
+  const startScanner = useCallback(async () => {
     setCameraError(null);
     setManualMode(false);
+    candidateRef.current = null;
+    rejectStatsRef.current = { count: 0, firstTs: 0, warned: false };
+
+    isStartingRef.current = true;
     try {
-      const scanner = new Html5Qrcode(containerRef.current);
+      const scanner = new Html5Qrcode(containerRef.current, {
+        verbose: false,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+        ],
+        useBarCodeDetectorIfSupported: true,
+      } as any);
       scannerRef.current = scanner;
       setScanning(true);
 
-      // iOS iPhones with multi-lens need higher resolution + native BarcodeDetector
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      const isIOS =
+        /iPad|iPhone|iPod/.test(navigator.userAgent) ||
         (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
-      scanner.start(
-        { facingMode: "environment" },
+      const camId = await pickBackCameraId();
+      const cameraConfig: any = camId ? { deviceId: { exact: camId } } : { facingMode: "environment" };
+
+      await scanner.start(
+        cameraConfig,
         {
-          fps: isIOS ? 30 : 10,
-          qrbox: { width: 280, height: 160 },
-          ...(isIOS ? {} : { aspectRatio: 1 }),
+          fps: isIOS ? 30 : 15,
+          qrbox: (vw: number, vh: number) => {
+            const w = Math.min(vw * 0.9, 360);
+            const h = Math.min(vh * 0.7, 220);
+            return { width: Math.floor(w), height: Math.floor(h) };
+          },
           experimentalFeatures: {
             useBarCodeDetectorIfSupported: true,
           },
-          videoConstraints: isIOS ? {
-            facingMode: "environment",
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-          } : undefined,
+          videoConstraints: isIOS
+            ? {
+                facingMode: "environment",
+                width: { ideal: 1920 },
+                height: { ideal: 1080 },
+              }
+            : {
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+              },
         } as any,
-        (decodedText) => {
-          if (navigator.vibrate) navigator.vibrate(100);
-          stopScanner();
-          handleDecoded(decodedText);
-        },
+        (decodedText, result) => handleDecoded(decodedText, result),
         () => {}
-      ).catch((err: any) => {
-        setScanning(false);
-        setCameraError(
-          err?.message?.includes("Permission")
-            ? "Accès caméra refusé. Veuillez autoriser l'accès dans les paramètres de votre navigateur."
-            : "Impossible d'accéder à la caméra. Vérifiez les permissions."
-        );
-      });
+      );
+
+      // Vérifier le support de la torche.
+      try {
+        const caps: any = (scanner as any).getRunningTrackCapabilities?.();
+        if (caps && (caps.torch === true || caps.torch === false)) {
+          setTorchSupported(true);
+        }
+      } catch {}
     } catch (err: any) {
       setScanning(false);
+      scannerRef.current = null;
       setCameraError(
-        err?.message?.includes("Permission")
+        err?.message?.includes("Permission") || err?.name === "NotAllowedError"
           ? "Accès caméra refusé. Veuillez autoriser l'accès dans les paramètres de votre navigateur."
           : "Impossible d'accéder à la caméra. Vérifiez les permissions."
       );
+    } finally {
+      isStartingRef.current = false;
     }
-  }, [handleDecoded, stopScanner]);
+  }, [handleDecoded]);
+
+  const toggleTorch = useCallback(async () => {
+    const scanner = scannerRef.current as any;
+    if (!scanner) return;
+    const next = !torchOn;
+    try {
+      await scanner.applyVideoConstraints({
+        advanced: [{ torch: next }],
+      });
+      setTorchOn(next);
+    } catch {
+      toast.error("Lampe non disponible sur cet appareil");
+      setTorchSupported(false);
+    }
+  }, [torchOn]);
 
   useEffect(() => {
     return () => {
@@ -142,7 +330,18 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
     if (val) {
       setSuggestions([]);
       if (navigator.vibrate) navigator.vibrate(50);
-      handleDecoded(val);
+      // Saisie manuelle : on fait confiance et on émet directement (pas de checksum imposé).
+      if (isAislePayload(val)) {
+        const aisle = parseAisleCode(val);
+        if (aisle) {
+          setActiveAisle(aisle);
+          toast.success(`Allée ${aisle} activée`);
+        } else {
+          toast.error("Allée inconnue");
+        }
+      } else {
+        onScan(val);
+      }
       setManualValue("");
     }
   };
@@ -164,12 +363,24 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
             </div>
           )}
           {scanning && (
-            <button
-              onClick={stopScanner}
-              className="absolute top-3 right-3 bg-foreground/70 text-background rounded-full p-2 touch-target"
-            >
-              <X size={20} />
-            </button>
+            <>
+              <button
+                onClick={stopScanner}
+                className="absolute top-3 right-3 bg-foreground/70 text-background rounded-full p-2 touch-target"
+                aria-label="Fermer le scanner"
+              >
+                <X size={20} />
+              </button>
+              {torchSupported && (
+                <button
+                  onClick={toggleTorch}
+                  className="absolute top-3 left-3 bg-foreground/70 text-background rounded-full p-2 touch-target"
+                  aria-label={torchOn ? "Éteindre la lampe" : "Allumer la lampe"}
+                >
+                  {torchOn ? <FlashlightOff size={20} /> : <Flashlight size={20} />}
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
