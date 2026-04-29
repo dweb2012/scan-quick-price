@@ -156,7 +156,7 @@ export async function updateUnknown(
   id: string,
   patch: Partial<Pick<UnknownProduct, "note" | "status">>
 ): Promise<void> {
-  const clean: Record<string, unknown> = {};
+  const clean: { note?: string | null; status?: "pending" | "resolved" } = {};
   if (patch.note !== undefined) clean.note = patch.note?.trim().slice(0, 500) || null;
   if (patch.status !== undefined) clean.status = patch.status;
   const { error } = await supabase.from("unknown_products").update(clean).eq("id", id);
