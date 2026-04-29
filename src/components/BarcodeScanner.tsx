@@ -4,7 +4,7 @@ import { Camera, Keyboard, X, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { autocompleteProducts, DolibarrProduct } from "@/lib/dolibarr";
-import { parseAisleCode, setActiveAisle } from "@/lib/aisle";
+import { parseAisleCode, setActiveAisle, isAislePayload, AISLE_PREFIX } from "@/lib/aisle";
 import { toast } from "sonner";
 
 interface BarcodeScannerProps {
@@ -35,11 +35,16 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
 
   const handleDecoded = useCallback(
     (decoded: string) => {
-      const aisle = parseAisleCode(decoded);
-      if (aisle) {
-        setActiveAisle(aisle);
-        if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
-        toast.success(`Allée ${aisle} activée`);
+      if (isAislePayload(decoded)) {
+        const aisle = parseAisleCode(decoded);
+        if (aisle) {
+          setActiveAisle(aisle);
+          if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+          toast.success(`Allée ${aisle} activée`);
+        } else {
+          const raw = decoded.trim().slice(AISLE_PREFIX.length).trim();
+          toast.error(`Allée inconnue : ${raw || "(vide)"}`);
+        }
         return;
       }
       onScan(decoded);
