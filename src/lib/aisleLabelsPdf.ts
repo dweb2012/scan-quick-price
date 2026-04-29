@@ -83,21 +83,21 @@ export async function generateAisleLabelsPdf(
       width: 600,
       errorCorrectionLevel: "M",
     });
-    const qrSize = Math.min(cellW, cellH) - 28;
+    const qrSize = Math.min(cellW, cellH) - 18;
     const qrX = x + (cellW - qrSize) / 2;
-    const qrY = y + 6;
+    const qrY = y + 7;
     doc.addImage(dataUrl, "PNG", qrX, qrY, qrSize, qrSize);
 
     // Header label
     doc.setTextColor(0);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text("ALLÉE", x + cellW / 2, y + 5, { align: "center" });
+    doc.setFontSize(10);
+    doc.text("EMPLACEMENT", x + cellW / 2, y + 5, { align: "center" });
 
     // Aisle code (big)
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
-    doc.text(name, x + cellW / 2, qrY + qrSize + 9, {
+    doc.setFontSize(34);
+    doc.text(name, x + cellW / 2, qrY + qrSize + 11, {
       align: "center",
       maxWidth: cellW - 6,
     });
@@ -107,7 +107,7 @@ export async function generateAisleLabelsPdf(
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.setTextColor(110);
-      doc.text(zoneName, x + cellW / 2, qrY + qrSize + 15, {
+      doc.text(zoneName, x + cellW / 2, qrY + qrSize + 18, {
         align: "center",
         maxWidth: cellW - 6,
       });
