@@ -92,6 +92,42 @@ export type Database = {
         }
         Relationships: []
       }
+      unknown_products: {
+        Row: {
+          aisle: string | null
+          barcode: string
+          created_at: string
+          id: string
+          note: string | null
+          photo_path: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          aisle?: string | null
+          barcode: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          photo_path?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          aisle?: string | null
+          barcode?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          photo_path?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
