@@ -304,13 +304,11 @@ const LocationEditor = ({
   product,
   open: openProp,
   initialAisle,
-  initialSpot,
   onClose,
 }: {
   product: DolibarrProduct;
   open?: boolean;
   initialAisle?: string;
-  initialSpot?: string;
   onClose?: () => void;
 }) => {
   const opts = product.array_options || {};
@@ -320,7 +318,6 @@ const LocationEditor = ({
   const [aisle, setAisle] = useState<string>(
     initialParsed.aisle || activeAisle || ""
   );
-  const [spot, setSpot] = useState<string>(initialParsed.spot || "");
   const [saving, setSaving] = useState(false);
 
   const isOpen = openProp ?? open;
@@ -328,9 +325,8 @@ const LocationEditor = ({
   useEffect(() => {
     if (openProp) {
       if (initialAisle !== undefined) setAisle(initialAisle);
-      if (initialSpot !== undefined) setSpot(initialSpot);
     }
-  }, [openProp, initialAisle, initialSpot]);
+  }, [openProp, initialAisle]);
 
   const handleClose = () => {
     setOpen(false);
@@ -340,7 +336,7 @@ const LocationEditor = ({
   const handleSave = async () => {
     setSaving(true);
     try {
-      const value = formatEmplacement(aisle, spot);
+      const value = formatEmplacement(aisle, "");
       await updateProductExtrafields(product.id, { options_emplacement: value });
       toast.success("Emplacement mis à jour");
       handleClose();
@@ -367,20 +363,9 @@ const LocationEditor = ({
           <X size={18} />
         </button>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground font-medium">Allée</label>
-          <AisleCombobox value={aisle} onChange={setAisle} />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground font-medium">Emplacement</label>
-          <Input
-            value={spot}
-            onChange={(e) => setSpot(e.target.value)}
-            placeholder="Ex: Étagère B2"
-            className="touch-target text-base"
-          />
-        </div>
+      <div className="space-y-1">
+        <label className="text-xs text-muted-foreground font-medium">Allée</label>
+        <AisleCombobox value={aisle} onChange={setAisle} />
       </div>
       <Button
         onClick={handleSave}
@@ -402,7 +387,6 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const activeAisle = useActiveAisle();
   const [aisleEditorOpen, setAisleEditorOpen] = useState(false);
   const [aisleEditorInitialAisle, setAisleEditorInitialAisle] = useState<string>("");
-  const [aisleEditorInitialSpot, setAisleEditorInitialSpot] = useState<string>("");
   const [storing, setStoring] = useState(false);
   const [emplacementOverride, setEmplacementOverride] = useState<string | null>(null);
 
@@ -603,7 +587,6 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
           product={product}
           open={aisleEditorOpen}
           initialAisle={aisleEditorInitialAisle}
-          initialSpot={aisleEditorInitialSpot}
           onClose={() => setAisleEditorOpen(false)}
         />
       )}
