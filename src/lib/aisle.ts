@@ -1,13 +1,22 @@
 const KEY = "chr.activeAisle";
 const PREFIX = "CHR-AISLE:";
 
+import { isValidAisle } from "./aisleCatalog";
+
 let listeners: (() => void)[] = [];
 
 export function parseAisleCode(code: string): string | null {
   const trimmed = (code || "").trim();
   if (!trimmed.toUpperCase().startsWith(PREFIX)) return null;
   const value = trimmed.slice(PREFIX.length).trim();
-  return value || null;
+  if (!value) return null;
+  // Whitelist stricte : refuser les codes hors catalogue.
+  return isValidAisle(value) ? value.toUpperCase() : null;
+}
+
+/** Indique si une chaîne brute commence par le préfixe d'allée (quel que soit le code). */
+export function isAislePayload(code: string): boolean {
+  return (code || "").trim().toUpperCase().startsWith(PREFIX);
 }
 
 export function getActiveAisle(): string | null {
