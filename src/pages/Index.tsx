@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import TopBar from "@/components/TopBar";
 import BottomNav, { type Tab } from "@/components/BottomNav";
 import BarcodeScanner from "@/components/BarcodeScanner";
@@ -7,13 +7,16 @@ import HistoryPanel from "@/components/HistoryPanel";
 import SettingsPanel from "@/components/SettingsPanel";
 import AdminUsersPanel from "@/components/AdminUsersPanel";
 import AisleBanner from "@/components/AisleBanner";
+import UnknownProductsPanel from "@/components/UnknownProductsPanel";
+import ReportUnknownDialog from "@/components/ReportUnknownDialog";
 import { searchProduct, DolibarrProduct, getSettings } from "@/lib/dolibarr";
 import { addToHistory } from "@/lib/history";
 import { cacheProduct, findCachedProduct } from "@/lib/productCache";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import { listMyUnknowns } from "@/lib/unknownProducts";
 import { toast } from "sonner";
-import { AlertTriangle, RefreshCw, WifiOff } from "lucide-react";
+import { AlertTriangle, RefreshCw, WifiOff, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const Index = () => {
@@ -25,6 +28,22 @@ const Index = () => {
   const [fromCache, setFromCache] = useState(false);
   const online = useOnlineStatus();
   const { isAdmin } = useIsAdmin();
+  const [reportOpen, setReportOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  const refreshPendingCount = useCallback(async () => {
+    try {
+      const items = await listMyUnknowns("pending");
+      setPendingCount(items.length);
+    } catch {
+      // silencieux : badge purement informatif
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshPendingCount();
+  }, [refreshPendingCount]);
+
   const handleScan = useCallback(async (code: string) => {
     setLastCode(code);
     setProduct(null);
@@ -83,6 +102,7 @@ const Index = () => {
 
   const renderContent = () => {
     if (tab === "history") return <HistoryPanel />;
+    if (tab === "unknown") return <UnknownProductsPanel />;
     if (tab === "settings") return <SettingsPanel />;
     if (tab === "admin") return <AdminUsersPanel />;
 
@@ -108,13 +128,22 @@ const Index = () => {
           </div>
           <p className="font-semibold text-lg">{error}</p>
           <p className="text-sm text-muted-foreground">Code recherché : {lastCode}</p>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={handleRetry} className="touch-target gap-2">
-              <RefreshCw size={16} /> Réessayer
+          <div className="flex flex-col gap-2 w-full max-w-xs">
+            <Button
+              variant="default"
+              onClick={() => setReportOpen(true)}
+              className="touch-target gap-2"
+            >
+              <ClipboardList size={16} /> Signaler à traiter
             </Button>
-            <Button onClick={handleScanNext} className="touch-target">
-              Nouveau scan
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleRetry} className="flex-1 touch-target gap-1">
+                <RefreshCw size={14} /> Réessayer
+              </Button>
+              <Button variant="outline" onClick={handleScanNext} className="flex-1 touch-target">
+                Nouveau scan
+              </Button>
+            </div>
           </div>
         </div>
       );
@@ -128,7 +157,21 @@ const Index = () => {
       <TopBar online={online} />
       <AisleBanner />
       <main className="flex-1 flex flex-col overflow-hidden">{renderContent()}</main>
-      <BottomNav active={tab} onChange={setTab} showAdmin={isAdmin} />
+      <BottomNav
+        active={tab}
+        onChange={(t) => {
+          setTab(t);
+          if (t === "unknown") refreshPendingCount();
+        }}
+        showAdmin={isAdmin}
+        unknownPendingCount={pendingCount}
+      />
+      <ReportUnknownDialog
+        open={reportOpen}
+        barcode={lastCode}
+        onClose={() => setReportOpen(false)}
+        onReported={refreshPendingCount}
+      />
     </div>
   );
 };
