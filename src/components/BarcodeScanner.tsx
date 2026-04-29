@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
-import { Camera, Keyboard, X, Loader2, Search, Flashlight, FlashlightOff } from "lucide-react";
+import { Camera, Keyboard, X, Loader2, Search, Flashlight, FlashlightOff, SwitchCamera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { autocompleteProducts, DolibarrProduct } from "@/lib/dolibarr";
@@ -81,6 +81,7 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
   const [autocompleteLoading, setAutocompleteLoading] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
+  const [facing, setFacing] = useState<"back" | "front">("back");
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerRef = useRef<string>("scanner-container");
@@ -198,11 +199,12 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
     [emit, stopScanner]
   );
 
-  const startScanner = useCallback(async () => {
+  const startScanner = useCallback(async (facingOverride?: "back" | "front") => {
     setCameraError(null);
     setManualMode(false);
     candidateRef.current = null;
     rejectStatsRef.current = { count: 0, firstTs: 0, warned: false };
+    const useFacing = facingOverride ?? facing;
 
     isStartingRef.current = true;
     try {
@@ -226,8 +228,13 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
         /iPad|iPhone|iPod/.test(navigator.userAgent) ||
         (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
-      const camId = await pickBackCameraId();
-      const cameraConfig: any = camId ? { deviceId: { exact: camId } } : { facingMode: "environment" };
+      let cameraConfig: any;
+      if (useFacing === "back") {
+        const camId = await pickBackCameraId();
+        cameraConfig = camId ? { deviceId: { exact: camId } } : { facingMode: "environment" };
+      } else {
+        cameraConfig = { facingMode: "user" };
+      }
 
       await scanner.start(
         cameraConfig,
@@ -243,7 +250,7 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
           },
           videoConstraints: isIOS
             ? {
-                facingMode: "environment",
+                facingMode: useFacing === "back" ? "environment" : "user",
                 width: { ideal: 1920 },
                 height: { ideal: 1080 },
               }
@@ -274,7 +281,17 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
     } finally {
       isStartingRef.current = false;
     }
-  }, [handleDecoded]);
+  }, [handleDecoded, facing]);
+
+  const switchCamera = useCallback(async () => {
+    const next: "back" | "front" = facing === "back" ? "front" : "back";
+    setFacing(next);
+    await stopScanner();
+    // Petit délai pour laisser le flux se libérer avant de redémarrer.
+    setTimeout(() => {
+      startScanner(next);
+    }, 200);
+  }, [facing, stopScanner, startScanner]);
 
   const toggleTorch = useCallback(async () => {
     const scanner = scannerRef.current as any;
@@ -371,6 +388,14 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
               >
                 <X size={20} />
               </button>
+              <button
+                onClick={switchCamera}
+                className="absolute bottom-3 right-3 bg-foreground/70 text-background rounded-full p-2 touch-target"
+                aria-label="Changer de caméra"
+                title={facing === "back" ? "Caméra avant" : "Caméra arrière"}
+              >
+                <SwitchCamera size={20} />
+              </button>
               {torchSupported && (
                 <button
                   onClick={toggleTorch}
@@ -395,7 +420,7 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
       {!scanning && !loading && (
         <div className="flex flex-col gap-3 w-full max-w-sm">
           <Button
-            onClick={startScanner}
+            onClick={() => startScanner()}
             className="touch-target text-base font-semibold gap-2"
             size="lg"
           >
