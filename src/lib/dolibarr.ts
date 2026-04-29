@@ -220,8 +220,15 @@ export async function updateProductExtrafields(
   productId: number,
   extrafields: Record<string, string>
 ): Promise<void> {
+  // Dolibarr REST API expects extrafield keys WITHOUT the `options_` prefix
+  // inside `array_options` (the prefix is only used when reading from the DB).
+  const normalized: Record<string, string> = {};
+  for (const [key, value] of Object.entries(extrafields)) {
+    const cleanKey = key.startsWith("options_") ? key.slice("options_".length) : key;
+    normalized[cleanKey] = value;
+  }
   await dolibarrProxy(`/api/index.php/products/${productId}`, "PUT", {
-    array_options: extrafields,
+    array_options: normalized,
   });
 }
 

@@ -145,6 +145,15 @@ Deno.serve(async (req) => {
     const responseText = await doliResponse.text();
     const contentType = doliResponse.headers.get("content-type") || "application/json";
 
+    if (method === "PUT") {
+      console.log("dolibarr-proxy PUT", {
+        url,
+        status: doliResponse.status,
+        payload: JSON.stringify(payload).slice(0, 500),
+        response: responseText.slice(0, 500),
+      });
+    }
+
     if (!doliResponse.ok) {
       return new Response(
         JSON.stringify({
