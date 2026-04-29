@@ -174,11 +174,11 @@ const SettingsPanel = () => {
           Étiquettes QR d'allées
         </h3>
         <p className="text-xs text-muted-foreground">
-          Imprimez un QR code par allée à coller en rayon. Scanner ce QR active
-          l'allée et pré-remplit le champ « Allée » lors de l'édition d'un
-          produit. Aucun champ supplémentaire n'est requis dans Dolibarr :
-          l'allée est stockée dans l'emplacement existant au format
-          « Allée / Emplacement » (ex. « A1 / Étagère 3 »).
+          Imprimez un QR code par emplacement à coller en rayon. La nomenclature
+          officielle (213 emplacements : A1–A22, B1–B22, …, R, X, SW…) est gérée
+          automatiquement. Scanner un QR active l'emplacement et pré-remplit le
+          champ « Allée » à l'édition produit. Stockage Dolibarr : champ
+          emplacement existant au format « Code / Détail » (ex. « H12 / Étagère 3 »).
         </p>
         <div className="space-y-2">
           <div className="flex items-center justify-between">
