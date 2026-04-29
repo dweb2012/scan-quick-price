@@ -127,7 +127,13 @@ const ReportUnknownDialog = ({ open, barcode, onClose, onReported }: Props) => {
                 <img src={previewUrl} alt="Aperçu" className="w-full h-48 object-contain bg-muted" />
                 <button
                   type="button"
-                  onClick={() => handleFile(null) || (setPhoto(null), setPreviewUrl(null))}
+                  onClick={() => {
+                    if (previewUrl) URL.revokeObjectURL(previewUrl);
+                    setPhoto(null);
+                    setPreviewUrl(null);
+                    if (fileRef.current) fileRef.current.value = "";
+                    if (galleryRef.current) galleryRef.current.value = "";
+                  }}
                   className="absolute top-2 right-2 bg-foreground/70 text-background rounded-full p-1.5"
                   aria-label="Retirer la photo"
                 >
