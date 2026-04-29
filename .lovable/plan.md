@@ -1,52 +1,109 @@
-## Rattacher les produits à une allée dans Dolibarr
+# Catalogue d'emplacements CHR Elite
 
-### Bonne nouvelle : pas besoin d'un nouveau champ
+## Objectif
 
-Le champ `options_emplacement` (extrafield produit déjà utilisé par l'app) suffit pour stocker l'allée. On va simplement formaliser sa convention d'écriture et l'exploiter automatiquement.
+Centraliser la liste officielle des emplacements du dépôt (~210 codes) et l'utiliser pour :
+1. **Valider strictement** les allées scannées et saisies (whitelist).
+2. **Faciliter l'édition produit** via un sélecteur déroulant groupé par zone.
+3. **Générer en un clic** le PDF complet des QR codes à coller en rayon.
 
-**Convention proposée** : `<ALLÉE> / <EMPLACEMENT>` (ex. `A1 / Étagère 3`).
-- Si seule l'allée est connue : `A1`.
-- Si seul l'emplacement est saisi (legacy), il est conservé tel quel.
+## La liste officielle
 
-Aucune migration Dolibarr nécessaire. Aucune migration Supabase nécessaire.
+| Zone | Codes | Nom complet |
+|---|---|---|
+| A | A1 → A22 | Allée A |
+| B | B1 → B22 | Allée B |
+| C | C1 → C22 | Allée C |
+| D | D1 → D22 | Allée D |
+| E | E1 → E22 | Allée E |
+| F | F1 → F20 | Allée F |
+| G | G1 → G22 | Allée G |
+| H | H1 → H38 | Allée H |
+| I | I1 → I18 | Allée I |
+| J | J1 → J15 | Allée J |
+| R | R | Retours |
+| S | S1 → S4 | SAV |
+| O | O1 → O8 | Occasion |
+| Y | Y1 → Y4 | Déclassé |
+| X | X | Inox |
+| SW | SW | Show Room |
 
-### Comportement utilisateur
+**Total : 213 emplacements.** Affichage utilisateur : `H12 (Allée H)`, `S2 (SAV)`, `X (Inox)`, etc.
 
-1. **Affichage produit** : la carte produit affichera l'allée (badge bleu cliquable) en plus de l'emplacement détaillé. Si on est dans une allée active différente, un petit avertissement "Produit rangé en A1" s'affiche.
-2. **Scan d'un QR allée** : en plus d'activer la bannière, l'app proposera (toast avec bouton) d'enregistrer cette allée comme allée par défaut pour les prochains produits scannés/modifiés.
-3. **Édition d'emplacement** : le champ actuel sera scindé en deux inputs côte à côte :
-   - "Allée" (pré-rempli avec l'allée active si présente)
-   - "Emplacement" (texte libre)
-   Les deux sont concaténés à l'enregistrement selon la convention.
-4. **Auto-remplissage** : quand une allée est active et qu'un produit n'a pas d'allée, un bouton "Ranger ici (A1)" en un tap met à jour l'extrafield Dolibarr.
+## Comportement utilisateur
 
-### Détails techniques
+### Édition d'un produit (ProductCard)
+- Le champ texte libre **Allée** devient un **sélecteur déroulant** (Combobox avec recherche), groupé par zone (A, B, … J, puis Spéciales).
+- L'allée active est pré-sélectionnée si elle existe.
+- Une option « Aucune » permet de vider l'allée.
+- Le champ **Emplacement** (texte libre, ex. « Étagère 3 ») reste inchangé.
+- Si un produit Dolibarr contient une allée hors-liste (legacy), elle s'affiche avec un badge orange « Hors liste » et un bouton « Réassigner ».
 
-**`src/lib/aisle.ts`** — ajouter helpers :
-- `parseEmplacement(raw: string): { aisle: string | null; spot: string | null }` — split sur ` / ` (premier séparateur), tolère absence.
-- `formatEmplacement(aisle: string | null, spot: string | null): string` — recompose proprement, vide si tout vide.
+### Scan d'un QR allée
+- Si le code scanné **n'est pas dans la whitelist** → toast d'erreur « Allée inconnue : XYZ ».
+- Si valide → comportement actuel (bannière + activation).
 
-**`src/components/ProductCard.tsx`** :
-- Remplacer le state unique `value` de l'éditeur d'emplacement par `{ aisle, spot }`, initialisés via `parseEmplacement(opts.options_emplacement)`.
-- Pré-remplir `aisle` avec `useActiveAisle()` si vide.
-- À la sauvegarde : `updateProductExtrafields(id, { options_emplacement: formatEmplacement(aisle, spot) })`.
-- Affichage : afficher l'allée comme badge `MapPin` distinct, et l'emplacement détaillé en dessous.
-- Ajouter un bouton "Ranger dans l'allée active" visible uniquement si une allée est active ET différente de celle du produit.
-- Avertissement visuel si `product.aisle && activeAisle && product.aisle !== activeAisle`.
+### Paramètres → Génération PDF
+- Le champ texte libre « Liste des allées (séparées par virgule) » est **remplacé** par :
+  - Un bouton **« Tout sélectionner (213) »** (par défaut coché).
+  - Un sélecteur de zones (cases à cocher : A, B, …, J, Spéciales) pour n'imprimer qu'un sous-ensemble.
+- Les contrôles d'orientation et de QR par page restent identiques.
+- Le PDF affiche désormais sous le code : la zone complète (ex. `H12` en gros + `Allée H` en petit, ou `S2` + `SAV`).
 
-**`src/components/SettingsPanel.tsx`** : mettre à jour le texte d'aide pour expliquer que scanner un QR allée pré-remplit le champ "Allée" lors de l'édition d'un produit.
+## Détails techniques
 
-### Ce qui ne change pas
+### Nouveau fichier `src/lib/aisleCatalog.ts`
+Source de vérité unique :
+```ts
+export interface AisleZone { code: string; name: string; range?: [number, number] }
+export const AISLE_ZONES: AisleZone[] = [
+  { code: "A", name: "Allée A", range: [1, 22] },
+  // … B, C, D, E (22), F (20), G (22), H (38), I (18), J (15)
+  { code: "R", name: "Retours" },
+  { code: "S", name: "SAV", range: [1, 4] },
+  { code: "O", name: "Occasion", range: [1, 8] },
+  { code: "Y", name: "Déclassé", range: [1, 4] },
+  { code: "X", name: "Inox" },
+  { code: "SW", name: "Show Room" },
+];
 
-- Pas de modification de schéma Dolibarr.
-- Pas de modification de la table Supabase.
-- L'extrafield `options_emplacement` continue d'être lu/écrit via le proxy `dolibarr-proxy` existant.
-- Les produits déjà saisis avec un emplacement libre restent affichés sans perte (zone "Emplacement", allée vide).
+export interface AisleEntry { code: string; zoneName: string; label: string }
+// expandAisles() → AisleEntry[] (213 entrées) avec memoization
+export function expandAisles(): AisleEntry[];
+export function isValidAisle(code: string): boolean;
+export function getAisleEntry(code: string): AisleEntry | null;
+export function formatAisleLabel(code: string): string; // "H12 (Allée H)"
+```
 
-### Évolution future possible (hors scope)
+### `src/lib/aisle.ts`
+- `parseAisleCode()` : ajouter validation via `isValidAisle()` ; retourner `null` si inconnu (le scanner affichera l'erreur).
 
-Si tu veux plus tard un vrai champ séparé `options_allee` côté Dolibarr (utile pour filtrer/exporter par allée dans Dolibarr lui-même), il faudra :
-1. Créer l'extrafield `allee` sur l'entité Produit dans Dolibarr (Configuration → Modules → Produits → Attributs supplémentaires).
-2. Adapter le code pour lire/écrire `options_allee` au lieu de splitter `options_emplacement`.
+### `src/components/BarcodeScanner.tsx`
+- Quand `parseAisleCode` retourne `null` mais que le code commence par `CHR-AISLE:` → toast d'erreur explicite « Allée inconnue ».
 
-Mais ce n'est utile que si tu veux exploiter l'allée **dans Dolibarr** (rapports, filtres). Pour l'usage app seul, la convention proposée suffit.
+### `src/components/ProductCard.tsx`
+- Remplacer l'`Input` du champ "Allée" par un `<Combobox>` (basé sur `Command` + `Popover` Shadcn déjà présents) listant les 213 entrées groupées par zone, avec recherche live.
+- Si l'allée actuelle du produit n'est pas dans la liste → afficher l'option en haut avec libellé « (Hors liste) ».
+
+### `src/components/SettingsPanel.tsx`
+- Supprimer le champ texte `aisleList`.
+- Ajouter une grille de cases à cocher pour les zones (sélection rapide : Tout / Aucun / par zone).
+- Au clic sur "Générer", appeler `generateAisleLabelsPdf(selectedEntries, …)` avec les `AisleEntry` (au lieu de simples strings).
+
+### `src/lib/aisleLabelsPdf.ts`
+- Changer la signature : `generateAisleLabelsPdf(entries: AisleEntry[], options)`.
+- Sous le code en gros, afficher `entry.zoneName` en petit (police 8pt, gris).
+- Le payload QR reste `CHR-AISLE:<code>` (rétrocompatible).
+
+### Fichiers modifiés
+- **Nouveau** : `src/lib/aisleCatalog.ts`
+- **Modifié** : `src/lib/aisle.ts`, `src/lib/aisleLabelsPdf.ts`, `src/components/BarcodeScanner.tsx`, `src/components/ProductCard.tsx`, `src/components/SettingsPanel.tsx`
+
+## Ce qui ne change pas
+- Format de stockage Dolibarr `options_emplacement` (`<ALLÉE> / <EMPLACEMENT>`).
+- Payload des QR codes (`CHR-AISLE:H12`).
+- Sessionstorage de l'allée active.
+- Aucune migration base de données.
+
+## Mémoire projet
+Mettre à jour `mem://project/overview` (ou créer `mem://features/aisle-catalog`) avec la liste officielle pour que les futures itérations la respectent.
