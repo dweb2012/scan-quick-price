@@ -261,6 +261,9 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
             <Keyboard size={20} />
             Saisie manuelle
           </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Scanner Bluetooth (Inateck Pro 8 SE-HID) compatible : scannez directement, le code est lu automatiquement.
+          </p>
         </div>
       )}
 
