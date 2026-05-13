@@ -109,6 +109,64 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
     };
   }, [stopScanner]);
 
+  // HID barcode scanner support (e.g. Inateck Pro 8 SE-HID)
+  // The scanner emits keystrokes very fast followed by Enter.
+  useEffect(() => {
+    let buffer = "";
+    let lastTime = 0;
+    const HID_CHAR_MAX_INTERVAL = 50; // ms between chars to qualify as HID input
+    const MIN_HID_LENGTH = 3;
+
+    const isTypingTarget = (el: EventTarget | null) => {
+      if (!(el instanceof HTMLElement)) return false;
+      const tag = el.tagName;
+      return (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        el.isContentEditable
+      );
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Ignore when user is typing in a field (manual input handles its own Enter)
+      if (isTypingTarget(e.target)) return;
+      if (loading) return;
+
+      const now = performance.now();
+      const delta = now - lastTime;
+      lastTime = now;
+
+      if (e.key === "Enter") {
+        const code = buffer.trim();
+        buffer = "";
+        if (code.length >= MIN_HID_LENGTH) {
+          e.preventDefault();
+          if (navigator.vibrate) navigator.vibrate(50);
+          // Stop camera if it was scanning to avoid double-scan
+          if (scannerRef.current) {
+            stopScanner();
+          }
+          handleDecoded(code);
+        }
+        return;
+      }
+
+      // Reset buffer if too slow between chars (likely human typing)
+      if (delta > HID_CHAR_MAX_INTERVAL) {
+        buffer = "";
+      }
+
+      // Only accept printable single-character keys
+      if (e.key.length === 1) {
+        buffer += e.key;
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleDecoded, loading, stopScanner]);
+
   // Autocomplete debounce
   const handleInputChange = (val: string) => {
     setManualValue(val);
@@ -203,6 +261,9 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
             <Keyboard size={20} />
             Saisie manuelle
           </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Scanner Bluetooth (Inateck Pro 8 SE-HID) compatible : scannez directement, le code est lu automatiquement.
+          </p>
         </div>
       )}
 
