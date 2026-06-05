@@ -164,7 +164,7 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
   // ========= Zone 3 — Code-barres =========
   const designationBottom = 11 + designationLines.length * 4;
   if (barcodeCanvas) {
-    const bcW = 46;
+    const bcW = 42;
     const bcH = 18;
     const bcX = (LABEL_W - bcW) / 2;
     const bcY = designationBottom + 2;
