@@ -164,7 +164,7 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
   // ========= Zone 3 — Code-barres =========
   if (barcodeCanvas) {
     const bcW = 50;
-    const bcH = 14;
+    const bcH = 18;
     const bcX = (LABEL_W - bcW) / 2;
     const bcY = 17;
     doc.addImage(
@@ -188,7 +188,7 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(136, 136, 136);
-    const yNormal = 36;
+    const yNormal = 42;
     const xNormal = 14;
     doc.text(normalText, xNormal, yNormal, { align: "center" });
     const normalW = doc.getTextWidth(normalText);
@@ -203,26 +203,26 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
       const badgeH = 5;
       const badgeX = xNormal - badgeW / 2;
       doc.setFillColor(0, 0, 0);
-      doc.rect(badgeX, 39, badgeW, badgeH, "F");
+      doc.rect(badgeX, 45, badgeW, badgeH, "F");
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
-      doc.text(`-${pct}%`, xNormal, 42.5, { align: "center" });
+      doc.text(`-${pct}%`, xNormal, 48.5, { align: "center" });
     }
 
     // c) Prix PROMO en gros (à droite)
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
+    doc.setFontSize(20);
     doc.setTextColor(0, 0, 0);
     const promoText = `${formatEuro(remisedHt!)} HT`;
-    doc.text(promoText, LABEL_W - 2, 42, { align: "right" });
+    doc.text(promoText, LABEL_W - 2, 49, { align: "right" });
   } else {
     // Pas de promo : prix normal en gros, centré
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(20);
+    doc.setFontSize(22);
     doc.setTextColor(0, 0, 0);
     const normalText = `${formatEuro(priceHt)} HT`;
-    doc.text(normalText, centerX, 42, { align: "center" });
+    doc.text(normalText, centerX, 48, { align: "center" });
   }
 
   doc.autoPrint();
