@@ -158,13 +158,13 @@ const SettingsPanel = () => {
       {/* Label format info */}
       <div className="border-t border-border pt-5 space-y-2">
         <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
-          Format d'étiquette DYMO 11354 / 30334
+          Format d'étiquette
         </h3>
         <p className="text-xs text-muted-foreground">
-          Le PDF est généré en <strong>57 × 32 mm paysage</strong>, taille exacte
-          du rouleau. Dans le pilote DYMO Windows, sélectionnez le format
-          <strong> 11354 (57 × 32 mm)</strong> et désactivez tout
-          « adapter à la page » pour éviter l'impression sur 2 étiquettes.
+          Le PDF est généré en <strong>47 × 70 mm portrait</strong>, taille
+          exacte de l'étiquette. Dans le pilote d'imprimante, sélectionnez ce
+          format personnalisé et désactivez tout « adapter à la page » pour
+          éviter l'impression sur plusieurs étiquettes.
         </p>
       </div>
 
