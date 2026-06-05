@@ -20,9 +20,9 @@ export const setLabelOrientation = (_o: LabelOrientation) => {
   localStorage.setItem(ORIENTATION_KEY, "portrait");
 };
 
-// Format physique de l'étiquette : 54 x 70 mm (portrait) — Dymo LD-99015 / S0722440.
-const LABEL_W = 54;
-const LABEL_H = 70;
+// Étiquette Dymo LD-99015 / S0722440 (54 × 70 mm) imprimée en PAYSAGE : 70 × 54 mm.
+const LABEL_W = 70;
+const LABEL_H = 54;
 
 const generateBarcodeCanvas = (value: string): HTMLCanvasElement | null => {
   if (!value) return null;
@@ -126,11 +126,11 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
 
   const cleaned = cleanLabel(product.label || "");
 
-  // Format PDF EXACT 54 x 70 mm portrait.
+  // Format PDF EXACT 70 x 54 mm paysage.
   const doc = new jsPDF({
-    orientation: 'portrait',
+    orientation: 'landscape',
     unit: 'mm',
-    format: [LABEL_W, LABEL_H],
+    format: [LABEL_H, LABEL_W],
     compress: true
   });
 
@@ -155,19 +155,19 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
-  const designationLines = (doc.splitTextToSize(cleaned, innerW) as string[]).slice(0, 3);
+  const designationLines = (doc.splitTextToSize(cleaned, innerW) as string[]).slice(0, 2);
   const lastIdx = designationLines.length - 1;
   if (lastIdx >= 0 && doc.getTextWidth(designationLines[lastIdx]) > innerW) {
     designationLines[lastIdx] = fitText(doc, designationLines[lastIdx], innerW, 10, 7);
   }
-  doc.text(designationLines, centerX, 12, { align: "center" });
+  doc.text(designationLines, centerX, 11, { align: "center" });
 
   // ========= Zone 3 — Code-barres =========
   if (barcodeCanvas) {
-    const bcW = 50;
-    const bcH = 20;
+    const bcW = 56;
+    const bcH = 18;
     const bcX = (LABEL_W - bcW) / 2;
-    const bcY = 28;
+    const bcY = 19;
     doc.addImage(
       barcodeCanvas.toDataURL("image/png"),
       "PNG",
@@ -189,7 +189,7 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(136, 136, 136);
-    const yNormal = 56;
+    const yNormal = 43;
     doc.text(normalText, centerX, yNormal, { align: "center" });
     const normalW = doc.getTextWidth(normalText);
     doc.setDrawColor(136, 136, 136);
@@ -203,11 +203,11 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
       const badgeH = 6;
       const badgeX = 3;
       doc.setFillColor(0, 0, 0);
-      doc.rect(badgeX, 62, badgeW, badgeH, "F");
+      doc.rect(badgeX, 47, badgeW, badgeH, "F");
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
-      doc.text(`-${pct}%`, badgeX + badgeW / 2, 66, { align: "center" });
+      doc.text(`-${pct}%`, badgeX + badgeW / 2, 51.2, { align: "center" });
     }
 
     // c) Prix PROMO en gros (à droite)
@@ -215,14 +215,14 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
     doc.setFontSize(18);
     doc.setTextColor(0, 0, 0);
     const promoText = `${formatEuro(remisedHt!)} HT`;
-    doc.text(promoText, LABEL_W - 2, 67, { align: "right" });
+    doc.text(promoText, LABEL_W - 2, 51, { align: "right" });
   } else {
     // Pas de promo : prix normal en gros, centré
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(20);
+    doc.setFontSize(22);
     doc.setTextColor(0, 0, 0);
     const normalText = `${formatEuro(priceHt)} HT`;
-    doc.text(normalText, centerX, 64, { align: "center" });
+    doc.text(normalText, centerX, 49, { align: "center" });
   }
 
   doc.autoPrint();
