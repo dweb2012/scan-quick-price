@@ -20,8 +20,8 @@ export const setLabelOrientation = (_o: LabelOrientation) => {
   localStorage.setItem(ORIENTATION_KEY, "portrait");
 };
 
-// Format physique de l'étiquette : 54 x 70 mm (portrait).
-const LABEL_W = 54;
+// Format physique de l'étiquette : 47 x 70 mm (portrait).
+const LABEL_W = 47;
 const LABEL_H = 70;
 
 const generateBarcodeCanvas = (value: string): HTMLCanvasElement | null => {
@@ -105,8 +105,7 @@ const wrapPdfText = (
 };
 
 /**
- * Génère une étiquette DYMO 11354 / 30334 au format EXACT 57 × 32 mm paysage.
- * Layout 57 × 32 mm : textes en haut, code-barres à gauche, prix à droite.
+ * Génère une étiquette au format EXACT 47 × 70 mm portrait.
  */
 const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> => {
   const [discounted, promos] = await Promise.all([
