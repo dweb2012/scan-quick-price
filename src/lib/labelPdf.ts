@@ -13,17 +13,16 @@ const cleanLabel = (label: string): string => {
   return out.trim();
 };
 
-// API conservée pour compat ; l'orientation est désormais figée en paysage.
 export type LabelOrientation = "portrait" | "landscape";
 const ORIENTATION_KEY = "labelOrientation";
-export const getLabelOrientation = (): LabelOrientation => "landscape";
+export const getLabelOrientation = (): LabelOrientation => "portrait";
 export const setLabelOrientation = (_o: LabelOrientation) => {
-  localStorage.setItem(ORIENTATION_KEY, "landscape");
+  localStorage.setItem(ORIENTATION_KEY, "portrait");
 };
 
-// Format physique de l'étiquette DYMO 11354 / 30334 : 57 x 32 mm (paysage).
-const LABEL_W = 57;
-const LABEL_H = 32;
+// Format physique de l'étiquette : 54 x 70 mm (portrait).
+const LABEL_W = 54;
+const LABEL_H = 70;
 
 const generateBarcodeCanvas = (value: string): HTMLCanvasElement | null => {
   if (!value) return null;
