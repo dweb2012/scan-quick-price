@@ -4,6 +4,8 @@ import {
   updateUnknown,
   deleteUnknown,
   getSignedPhotoUrl,
+  exportUnknownsCsv,
+  downloadCsv,
   type UnknownProduct,
   type UnknownFilter,
 } from "@/lib/unknownProducts";
@@ -20,6 +22,7 @@ import {
   MapPin,
   Image as ImageIcon,
   ClipboardList,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -276,9 +279,29 @@ const UnknownProductsPanel = () => {
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-5 space-y-4">
-      <div className="flex items-center gap-2">
-        <ClipboardList className="text-primary" size={20} />
-        <h2 className="text-base font-bold">Produits à traiter</h2>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <ClipboardList className="text-primary" size={20} />
+          <h2 className="text-base font-bold">Produits à traiter</h2>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1 touch-target h-9"
+          disabled={items.length === 0}
+          onClick={() => {
+            if (items.length === 0) {
+              toast.error("Rien à exporter");
+              return;
+            }
+            const csv = exportUnknownsCsv(items);
+            const date = new Date().toISOString().slice(0, 10);
+            downloadCsv(`produits-a-traiter-${date}.csv`, csv);
+            toast.success(`${items.length} ligne(s) exportée(s)`);
+          }}
+        >
+          <Download size={14} /> Exporter CSV
+        </Button>
       </div>
 
       <div className="grid grid-cols-3 gap-1 bg-muted rounded-lg p-1">
