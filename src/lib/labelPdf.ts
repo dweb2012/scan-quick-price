@@ -20,9 +20,9 @@ export const setLabelOrientation = (_o: LabelOrientation) => {
   localStorage.setItem(ORIENTATION_KEY, "portrait");
 };
 
-// Format physique de l'étiquette : 70 x 47 mm (paysage).
+// Format physique de l'étiquette : 70 x 54 mm (paysage).
 const LABEL_W = 70;
-const LABEL_H = 47;
+const LABEL_H = 54;
 
 const generateBarcodeCanvas = (value: string): HTMLCanvasElement | null => {
   if (!value) return null;
@@ -105,7 +105,7 @@ const wrapPdfText = (
 };
 
 /**
- * Génère une étiquette au format EXACT 70 × 47 mm paysage.
+ * Génère une étiquette au format EXACT 70 × 54 mm paysage.
  */
 const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> => {
   const [discounted, promos] = await Promise.all([
