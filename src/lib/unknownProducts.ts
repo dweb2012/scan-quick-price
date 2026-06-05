@@ -194,7 +194,9 @@ function csvCell(value: string | null | undefined): string {
   return v;
 }
 
-export function exportUnknownsCsv(items: UnknownProductWithUser[]): string {
+export function exportUnknownsCsv(
+  items: (UnknownProduct & Partial<Pick<UnknownProductWithUser, "user_display_name" | "user_email">>)[],
+): string {
   const header = ["code", "note", "allee", "statut", "utilisateur", "email", "date_creation", "photo_path"];
   const rows = items.map((i) => [
     csvCell(i.barcode),
