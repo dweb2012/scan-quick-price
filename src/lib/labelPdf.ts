@@ -105,7 +105,7 @@ const wrapPdfText = (
 };
 
 /**
- * Génère une étiquette au format EXACT 47 × 70 mm portrait.
+ * Génère une étiquette au format EXACT 70 × 47 mm paysage.
  */
 const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> => {
   const [discounted, promos] = await Promise.all([
