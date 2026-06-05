@@ -129,9 +129,9 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
 
   // Format PDF EXACT 57 x 32 mm paysage, sans rotation du contenu.
   const doc = new jsPDF({
-    orientation: 'landscape',
+    orientation: 'portrait',
     unit: 'mm',
-    format: [32, 57],
+    format: [LABEL_W, LABEL_H],
     compress: true
   });
 
@@ -143,92 +143,87 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
   doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, LABEL_W, LABEL_H, "F");
 
-  // ========= Zone 1 — En-tête (y = 0 à 8mm) =========
-  // Réf
+  const innerW = LABEL_W - 4; // 2mm padding chaque côté
+  const centerX = LABEL_W / 2;
+
+  // ========= Zone 1 — En-tête =========
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(6);
-  doc.setTextColor(85, 85, 85); // #555
-  doc.text(`Réf: ${product.ref}`, 2, 3);
+  doc.setFontSize(7);
+  doc.setTextColor(85, 85, 85);
+  doc.text(`Réf: ${product.ref}`, 2, 5);
 
-  // Désignation : 9pt bold, wrap sur 2 lignes max (largeur 53mm)
+  // ========= Zone 2 — Désignation =========
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
+  doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
-  const designationLines = (doc.splitTextToSize(cleaned, 53) as string[]).slice(0, 2);
-  // Tronquer la 2e ligne si besoin
-  if (designationLines.length === 2 && doc.getTextWidth(designationLines[1]) > 53) {
-    designationLines[1] = fitText(doc, designationLines[1], 53, 9, 7);
+  const designationLines = (doc.splitTextToSize(cleaned, innerW) as string[]).slice(0, 3);
+  if (designationLines.length === 3 && doc.getTextWidth(designationLines[2]) > innerW) {
+    designationLines[2] = fitText(doc, designationLines[2], innerW, 10, 7);
   }
-  doc.text(designationLines, 2, 7);
+  doc.text(designationLines, centerX, 11, { align: "center" });
 
-  const isTwoLines = designationLines.length === 2;
-
-  // ========= Zone 2 — Code-barres (gauche) =========
-  // Si désignation sur 2 lignes : y=11mm, hauteur réduite à 12mm
+  // ========= Zone 3 — Code-barres =========
+  const designationBottom = 11 + designationLines.length * 4;
   if (barcodeCanvas) {
-    const bcY = isTwoLines ? 13 : 9;
-    const bcH = isTwoLines ? 12 : 14;
+    const bcW = 46;
+    const bcH = 18;
+    const bcX = (LABEL_W - bcW) / 2;
+    const bcY = designationBottom + 2;
     doc.addImage(
       barcodeCanvas.toDataURL("image/png"),
       "PNG",
-      2, bcY, 28, bcH,
+      bcX, bcY, bcW, bcH,
       undefined,
       "FAST"
     );
   }
 
-  // ========= Zone 3 — Prix (droite) =========
+  // ========= Zone 4 — Prix (bas) =========
   const hasPromo = remisedHt != null && remisedHt < priceHt;
 
   const formatEuro = (n: number) =>
     `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
   if (hasPromo) {
-    // a) Prix normal BARRÉ — 10pt gris
+    // a) Prix normal BARRÉ
     const normalText = `${formatEuro(priceHt)} HT`;
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(136, 136, 136); // #888
-    const xNormal = 33;
-    const yNormal = 14;
-    doc.text(normalText, xNormal, yNormal);
+    doc.setFontSize(11);
+    doc.setTextColor(136, 136, 136);
+    const yNormal = 52;
+    doc.text(normalText, centerX, yNormal, { align: "center" });
     const normalW = doc.getTextWidth(normalText);
     doc.setDrawColor(136, 136, 136);
-    doc.setLineWidth(0.3);
-    doc.line(xNormal, yNormal - 1.2, xNormal + normalW, yNormal - 1.2);
+    doc.setLineWidth(0.4);
+    doc.line(centerX - normalW / 2, yNormal - 1.4, centerX + normalW / 2, yNormal - 1.4);
 
     // b) Prix PROMO en gros
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
+    doc.setFontSize(20);
     doc.setTextColor(0, 0, 0);
-    const promoText = formatEuro(remisedHt!);
-    doc.text(promoText, 33, 22);
-    const promoW = doc.getTextWidth(promoText);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.text(" HT", 33 + promoW, 22);
+    const promoText = `${formatEuro(remisedHt!)} HT`;
+    doc.text(promoText, centerX, 62, { align: "center" });
 
     // c) Badge -%
     const pct = Math.round((1 - remisedHt! / priceHt) * 100);
     if (pct > 0) {
+      const badgeW = 14;
+      const badgeH = 5;
+      const badgeX = (LABEL_W - badgeW) / 2;
       doc.setFillColor(0, 0, 0);
-      doc.rect(42, 26, 12, 4, "F");
+      doc.rect(badgeX, 65, badgeW, badgeH, "F");
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.text(`-${pct}%`, 48, 29, { align: "center" });
+      doc.setFontSize(9);
+      doc.text(`-${pct}%`, centerX, 68.5, { align: "center" });
     }
   } else {
-    // Pas de promo : prix normal en gros
+    // Pas de promo : prix normal en gros, centré
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
+    doc.setFontSize(22);
     doc.setTextColor(0, 0, 0);
-    const normalText = formatEuro(priceHt);
-    doc.text(normalText, 33, 20);
-    const w = doc.getTextWidth(normalText);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.text(" HT", 33 + w, 20);
+    const normalText = `${formatEuro(priceHt)} HT`;
+    doc.text(normalText, centerX, 60, { align: "center" });
   }
 
   doc.autoPrint();
