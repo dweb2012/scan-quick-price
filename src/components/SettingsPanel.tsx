@@ -161,7 +161,7 @@ const SettingsPanel = () => {
           Format d'étiquette
         </h3>
         <p className="text-xs text-muted-foreground">
-          Le PDF est généré en <strong>47 × 70 mm portrait</strong>, taille
+          Le PDF est généré en <strong>70 × 47 mm paysage</strong>, taille
           exacte de l'étiquette. Dans le pilote d'imprimante, sélectionnez ce
           format personnalisé et désactivez tout « adapter à la page » pour
           éviter l'impression sur plusieurs étiquettes.
