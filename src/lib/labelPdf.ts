@@ -166,11 +166,12 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
   const designationEndY = designationStartY + (designationLines.length - 1) * lineHeight;
 
   // ========= Zone 3 — Code-barres =========
+  let barcodeEndY = designationEndY + 4;
   if (barcodeCanvas) {
     const bcW = 48;
-    const bcH = 18;
+    const bcH = 20;
     const bcX = (LABEL_W - bcW) / 2;
-    const bcY = Math.max(designationEndY + 3, 26);
+    const bcY = designationEndY + 5;
     doc.addImage(
       barcodeCanvas.toDataURL("image/png"),
       "PNG",
@@ -178,6 +179,7 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
       undefined,
       "SLOW"
     );
+    barcodeEndY = bcY + bcH;
   }
 
   // ========= Zone 4 — Prix (bas) =========
