@@ -190,9 +190,9 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
     // a) Prix normal BARRÉ (haut)
     const normalText = `${formatEuro(priceHt)} HT`;
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
+    doc.setFontSize(10);
     doc.setTextColor(136, 136, 136);
-    const yNormal = 55;
+    const yNormal = 56;
     doc.text(normalText, centerX, yNormal, { align: "center" });
     const normalW = doc.getTextWidth(normalText);
     doc.setDrawColor(136, 136, 136);
@@ -202,30 +202,31 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
     // b) Badge -% (gauche du prix promo)
     const pct = Math.round((1 - remisedHt! / priceHt) * 100);
     if (pct > 0) {
-      const badgeW = 14;
-      const badgeH = 6;
+      const badgeW = 13;
+      const badgeH = 6.5;
       const badgeX = 2;
+      const badgeY = 61;
       doc.setFillColor(0, 0, 0);
-      doc.rect(badgeX, 60, badgeW, badgeH, "F");
+      doc.rect(badgeX, badgeY, badgeW, badgeH, "F");
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
-      doc.text(`-${pct}%`, badgeX + badgeW / 2, 64.2, { align: "center" });
+      doc.text(`-${pct}%`, badgeX + badgeW / 2, badgeY + badgeH / 2 + 1.3, { align: "center" });
     }
 
     // c) Prix PROMO en gros (à droite)
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
+    doc.setFontSize(17);
     doc.setTextColor(0, 0, 0);
     const promoText = `${formatEuro(remisedHt!)} HT`;
-    doc.text(promoText, LABEL_W - 2, 64.5, { align: "right" });
+    doc.text(promoText, LABEL_W - 2, 66, { align: "right" });
   } else {
     // Pas de promo : prix normal en gros, centré
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(20);
+    doc.setFontSize(22);
     doc.setTextColor(0, 0, 0);
     const normalText = `${formatEuro(priceHt)} HT`;
-    doc.text(normalText, centerX, 62, { align: "center" });
+    doc.text(normalText, centerX, 64, { align: "center" });
   }
 
   doc.autoPrint();
