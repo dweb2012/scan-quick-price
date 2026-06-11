@@ -201,14 +201,14 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
     // a) Prix normal BARRÉ (haut)
     const normalText = `${formatEuro(priceHt)} HT`;
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
+    doc.setFontSize(14);
     doc.setTextColor(136, 136, 136);
-    const yNormal = 56;
+    const yNormal = 55;
     doc.text(normalText, centerX, yNormal, { align: "center" });
     const normalW = doc.getTextWidth(normalText);
     doc.setDrawColor(136, 136, 136);
-    doc.setLineWidth(0.4);
-    doc.line(centerX - normalW / 2, yNormal - 1, centerX + normalW / 2, yNormal - 1);
+    doc.setLineWidth(0.5);
+    doc.line(centerX - normalW / 2, yNormal - 1.5, centerX + normalW / 2, yNormal - 1.5);
 
     // b+c) Badge -% + Prix PROMO, groupe centré
     const pct = Math.round((1 - remisedHt! / priceHt) * 100);
