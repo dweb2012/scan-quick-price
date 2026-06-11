@@ -203,7 +203,7 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
     doc.setFont("helvetica", "normal");
     doc.setFontSize(14);
     doc.setTextColor(136, 136, 136);
-    const yNormal = 55;
+    const yNormal = 58;
     doc.text(normalText, centerX, yNormal, { align: "center" });
     const normalW = doc.getTextWidth(normalText);
     doc.setDrawColor(136, 136, 136);
