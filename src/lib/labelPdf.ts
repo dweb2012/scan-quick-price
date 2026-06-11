@@ -160,7 +160,7 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
   if (lastIdx >= 0 && doc.getTextWidth(designationLines[lastIdx]) > innerW) {
     designationLines[lastIdx] = fitText(doc, designationLines[lastIdx], innerW, 12, 7);
   }
-  const designationStartY = 9;
+  const designationStartY = 11;
   const lineHeight = 4.5;
   doc.text(designationLines, centerX, designationStartY, { align: "center", lineHeightFactor: 1.15 });
   const designationEndY = designationStartY + (designationLines.length - 1) * lineHeight;
@@ -228,10 +228,10 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
   } else {
     // Pas de promo : prix normal en gros, centré
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
+    doc.setFontSize(30);
     doc.setTextColor(0, 0, 0);
     const normalText = `${formatEuro(priceHt)} HT`;
-    doc.text(normalText, centerX, 64, { align: "center" });
+    doc.text(normalText, centerX, 66, { align: "center" });
   }
 
   doc.autoPrint();
