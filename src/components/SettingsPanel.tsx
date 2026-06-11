@@ -161,9 +161,9 @@ const SettingsPanel = () => {
           Format d'étiquette
         </h3>
         <p className="text-xs text-muted-foreground">
-          Le PDF est généré en <strong>70 × 54 mm paysage</strong>. Dans le
+          Le PDF est généré en <strong>54 × 70 mm portrait</strong>. Dans le
           pilote d'imprimante, sélectionnez le format 54 × 70 mm en orientation
-          paysage et désactivez « adapter à la page » pour éviter l'impression
+          portrait et désactivez « adapter à la page » pour éviter l'impression
           sur plusieurs étiquettes.
         </p>
       </div>
