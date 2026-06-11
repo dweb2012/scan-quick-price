@@ -149,7 +149,7 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.setTextColor(85, 85, 85);
-  doc.text(`Réf: ${product.ref}`, centerX, 7, { align: "center" });
+  doc.text(`Réf: ${product.ref}`, centerX, 9, { align: "center" });
 
   // Emplacement (si renseigné)
   const emplacement = (product.array_options?.options_emplacement || "").trim();
@@ -157,7 +157,7 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.setTextColor(30, 64, 175);
-    doc.text(`Allée ${emplacement}`, centerX, 11, { align: "center" });
+    doc.text(`Allée ${emplacement}`, centerX, 13, { align: "center" });
   }
 
   // ========= Zone 2 — Désignation =========
@@ -169,7 +169,7 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
   if (lastIdx >= 0 && doc.getTextWidth(designationLines[lastIdx]) > innerW) {
     designationLines[lastIdx] = fitText(doc, designationLines[lastIdx], innerW, 12, 7);
   }
-  const designationStartY = emplacement ? 17 : 13;
+  const designationStartY = emplacement ? 19 : 15;
   const lineHeight = 4.5;
   doc.text(designationLines, centerX, designationStartY, { align: "center", lineHeightFactor: 1.15 });
   const designationEndY = designationStartY + (designationLines.length - 1) * lineHeight;
