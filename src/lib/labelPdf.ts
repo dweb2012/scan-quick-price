@@ -30,9 +30,9 @@ const generateBarcodeCanvas = (value: string): HTMLCanvasElement | null => {
     const canvas = document.createElement("canvas");
     JsBarcode(canvas, value, {
       format: /^\d{13}$/.test(value) ? "EAN13" : "CODE128",
-      width: 1.2,
-      height: 35,
-      fontSize: 10,
+      width: 3,
+      height: 80,
+      fontSize: 18,
       displayValue: true,
       margin: 0,
       textMargin: 1,
@@ -43,9 +43,9 @@ const generateBarcodeCanvas = (value: string): HTMLCanvasElement | null => {
       const canvas = document.createElement("canvas");
       JsBarcode(canvas, value, {
         format: "CODE128",
-        width: 1.2,
-        height: 35,
-        fontSize: 10,
+        width: 3,
+        height: 80,
+        fontSize: 18,
         displayValue: true,
         margin: 0,
         textMargin: 1,
@@ -147,33 +147,36 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
 
   // ========= Zone 1 — En-tête =========
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
+  doc.setFontSize(7);
   doc.setTextColor(85, 85, 85);
-  doc.text(`Réf: ${product.ref}`, 2, 5);
+  doc.text(`Réf: ${product.ref}`, 2, 4);
 
   // ========= Zone 2 — Désignation =========
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
+  doc.setFontSize(12);
   doc.setTextColor(0, 0, 0);
   const designationLines = (doc.splitTextToSize(cleaned, innerW) as string[]).slice(0, 3);
   const lastIdx = designationLines.length - 1;
   if (lastIdx >= 0 && doc.getTextWidth(designationLines[lastIdx]) > innerW) {
-    designationLines[lastIdx] = fitText(doc, designationLines[lastIdx], innerW, 9, 6);
+    designationLines[lastIdx] = fitText(doc, designationLines[lastIdx], innerW, 12, 7);
   }
-  doc.text(designationLines, centerX, 11, { align: "center" });
+  const designationStartY = 9;
+  const lineHeight = 4.5;
+  doc.text(designationLines, centerX, designationStartY, { align: "center", lineHeightFactor: 1.15 });
+  const designationEndY = designationStartY + (designationLines.length - 1) * lineHeight;
 
   // ========= Zone 3 — Code-barres =========
   if (barcodeCanvas) {
     const bcW = 48;
-    const bcH = 20;
+    const bcH = 18;
     const bcX = (LABEL_W - bcW) / 2;
-    const bcY = 26;
+    const bcY = Math.max(designationEndY + 3, 26);
     doc.addImage(
       barcodeCanvas.toDataURL("image/png"),
       "PNG",
       bcX, bcY, bcW, bcH,
       undefined,
-      "FAST"
+      "SLOW"
     );
   }
 
