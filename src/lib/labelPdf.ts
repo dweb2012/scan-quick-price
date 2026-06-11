@@ -147,9 +147,9 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
 
   // ========= Zone 1 — En-tête =========
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
+  doc.setFontSize(10);
   doc.setTextColor(85, 85, 85);
-  doc.text(`Réf: ${product.ref}`, 2, 4);
+  doc.text(`Réf: ${product.ref}`, centerX, 5, { align: "center" });
 
   // ========= Zone 2 — Désignation =========
   doc.setFont("helvetica", "bold");
@@ -201,27 +201,30 @@ const buildLabelPdfDocument = async (product: DolibarrProduct): Promise<jsPDF> =
     doc.setLineWidth(0.4);
     doc.line(centerX - normalW / 2, yNormal - 1, centerX + normalW / 2, yNormal - 1);
 
-    // b) Badge -% (gauche du prix promo)
+    // b+c) Badge -% + Prix PROMO, groupe centré
     const pct = Math.round((1 - remisedHt! / priceHt) * 100);
+    const promoText = `${formatEuro(remisedHt!)} HT`;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(17);
+    const promoW = doc.getTextWidth(promoText);
+    const badgeW = pct > 0 ? 13 : 0;
+    const badgeH = 6.5;
+    const gap = pct > 0 ? 2 : 0;
+    const groupW = badgeW + gap + promoW;
+    const groupX = (LABEL_W - groupW) / 2;
+    const yCenter = 65;
     if (pct > 0) {
-      const badgeW = 13;
-      const badgeH = 6.5;
-      const badgeX = 2;
-      const badgeY = 61;
+      const badgeY = yCenter - badgeH / 2;
       doc.setFillColor(0, 0, 0);
-      doc.rect(badgeX, badgeY, badgeW, badgeH, "F");
+      doc.rect(groupX, badgeY, badgeW, badgeH, "F");
       doc.setTextColor(255, 255, 255);
-      doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
-      doc.text(`-${pct}%`, badgeX + badgeW / 2, badgeY + badgeH / 2 + 1.3, { align: "center" });
+      doc.text(`-${pct}%`, groupX + badgeW / 2, badgeY + badgeH / 2 + 1.3, { align: "center" });
     }
-
-    // c) Prix PROMO en gros (à droite)
     doc.setFont("helvetica", "bold");
     doc.setFontSize(17);
     doc.setTextColor(0, 0, 0);
-    const promoText = `${formatEuro(remisedHt!)} HT`;
-    doc.text(promoText, LABEL_W - 2, 66, { align: "right" });
+    doc.text(promoText, groupX + badgeW + gap, yCenter + 2, { align: "left" });
   } else {
     // Pas de promo : prix normal en gros, centré
     doc.setFont("helvetica", "bold");
