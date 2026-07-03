@@ -12,6 +12,21 @@ export function isCasB(product: DolibarrProduct): boolean {
   return !label.includes("BMY");
 }
 
+/** Envoi vers l'onglet A (produit BMY trouvé dans Dolibarr — cas nominal). */
+export async function sendCasA(product: DolibarrProduct): Promise<void> {
+  const payload = {
+    sheet: "A",
+    ref: product.ref,
+    label: product.label,
+    barcode: product.barcode,
+    stock: product.stock_reel,
+    emplacement: product.array_options?.options_emplacement || "",
+    fournisseur: product.supplierName || "",
+  };
+  const { error } = await supabase.functions.invoke("export-cas-b", { body: payload });
+  if (error) throw new Error(error.message);
+}
+
 /** Envoi manuel vers l'onglet B après validation utilisateur. */
 export async function sendCasB(product: DolibarrProduct): Promise<void> {
   const payload = {
