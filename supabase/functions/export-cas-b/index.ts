@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { ref, label, barcode, stock, emplacement, fournisseur, photo } = body ?? {};
+    const { ref, label, barcode, stock, emplacement, fournisseur } = body ?? {};
 
     if (!ref && !barcode) {
       return new Response(JSON.stringify({ ok: false, error: 'ref or barcode required' }), {
@@ -63,9 +63,8 @@ Deno.serve(async (req) => {
       console.warn('Dedup check error', e);
     }
 
-    // Colonnes du Sheet: Photo | Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note
+    // Colonnes du Sheet (B→I): Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note | Etat
     const row = [
-      photo ?? '',
       ref ?? '',
       barcode ?? '',
       label ?? '',
