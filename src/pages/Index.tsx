@@ -153,6 +153,21 @@ const Index = () => {
             >
               <ClipboardList size={16} /> Signaler à traiter
             </Button>
+            {online && lastCode && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  toast.promise(sendCasC(lastCode), {
+                    loading: "Envoi vers le Sheet…",
+                    success: "Ajouté à l'onglet C",
+                    error: (e) => `Échec: ${e.message}`,
+                  });
+                }}
+                className="touch-target gap-2"
+              >
+                Envoyer au Sheet (onglet C)
+              </Button>
+            )}
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleRetry} className="flex-1 touch-target gap-1">
                 <RefreshCw size={14} /> Réessayer
