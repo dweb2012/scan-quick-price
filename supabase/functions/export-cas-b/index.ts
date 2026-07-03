@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const { ref, label, barcode, stock, emplacement, fournisseur } = body ?? {};
     const sheetName = ALLOWED_SHEETS.includes(body?.sheet) ? body.sheet : 'B';
-    const SHEET_RANGE = `${sheetName}!A:I`;
+    const SHEET_RANGE = `${sheetName}!B:I`;
     const DEDUP_RANGE = `${sheetName}!B:C`;
 
     if (!ref && !barcode) {
