@@ -61,3 +61,32 @@ export async function sendCasE(payload: {
   });
   if (error) throw new Error(error.message);
 }
+
+/**
+ * CAS D : produit présent dans Dolibarr mais dont le carton n'a ni référence
+ * ni code-barre visible. Le magasinier recherche le produit puis prend une
+ * photo du carton (obligatoire) et éventuellement une note.
+ */
+export async function sendCasD(payload: {
+  product: DolibarrProduct;
+  emplacement?: string;
+  note?: string;
+  user?: string;
+  imageDataUrl: string;
+}): Promise<void> {
+  const { product, emplacement, note, user, imageDataUrl } = payload;
+  const body = {
+    sheet: "D",
+    ref: product.ref,
+    label: product.label,
+    barcode: product.barcode,
+    stock: product.stock_reel,
+    emplacement: emplacement || product.array_options?.options_emplacement || "",
+    fournisseur: product.supplierName || "",
+    note: note || "",
+    user: user || "",
+    imageDataUrl,
+  };
+  const { error } = await supabase.functions.invoke("export-cas-b", { body });
+  if (error) throw new Error(error.message);
+}
