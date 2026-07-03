@@ -9,6 +9,7 @@ import AdminUsersPanel from "@/components/AdminUsersPanel";
 import AisleBanner from "@/components/AisleBanner";
 import UnknownProductsPanel from "@/components/UnknownProductsPanel";
 import ReportUnknownDialog from "@/components/ReportUnknownDialog";
+import ReportCasEDialog from "@/components/ReportCasEDialog";
 import { searchProduct, DolibarrProduct, getSettings } from "@/lib/dolibarr";
 import { addToHistory } from "@/lib/history";
 import { cacheProduct, findCachedProduct } from "@/lib/productCache";
@@ -30,6 +31,7 @@ const Index = () => {
   const online = useOnlineStatus();
   const { isAdmin } = useIsAdmin();
   const [reportOpen, setReportOpen] = useState(false);
+  const [casEOpen, setCasEOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
   const refreshPendingCount = useCallback(async () => {
@@ -181,7 +183,20 @@ const Index = () => {
       );
     }
 
-    return <BarcodeScanner onScan={handleScan} loading={loading} />;
+    return (
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <BarcodeScanner onScan={handleScan} loading={loading} />
+        <div className="px-4 pb-3 pt-2 border-t border-border bg-background">
+          <Button
+            variant="outline"
+            onClick={() => setCasEOpen(true)}
+            className="w-full touch-target gap-2"
+          >
+            <ClipboardList size={16} /> Produit sans code (CAS E)
+          </Button>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -204,6 +219,7 @@ const Index = () => {
         onClose={() => setReportOpen(false)}
         onReported={refreshPendingCount}
       />
+      <ReportCasEDialog open={casEOpen} onClose={() => setCasEOpen(false)} />
     </div>
   );
 };
