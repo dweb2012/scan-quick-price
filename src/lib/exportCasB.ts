@@ -14,10 +14,10 @@ export function exportCasBIfNeeded(product: DolibarrProduct): void {
     ref: product.ref,
     label: product.label,
     barcode: product.barcode,
-    price_ht: product.price,
     stock: product.stock_reel,
     emplacement: product.array_options?.options_emplacement || "",
     fournisseur: product.supplierName || "",
+    photo: product.imageUrl || "",
   };
 
   supabase.functions
