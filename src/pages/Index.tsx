@@ -11,10 +11,11 @@ import UnknownProductsPanel from "@/components/UnknownProductsPanel";
 import ReportUnknownDialog from "@/components/ReportUnknownDialog";
 import ReportCasEDialog from "@/components/ReportCasEDialog";
 import ReportCasDDialog from "@/components/ReportCasDDialog";
+import ReportCasCDialog from "@/components/ReportCasCDialog";
 import { searchProduct, DolibarrProduct, getSettings } from "@/lib/dolibarr";
 import { addToHistory } from "@/lib/history";
 import { cacheProduct, findCachedProduct } from "@/lib/productCache";
-import { isCasB, sendCasA, sendCasB, sendCasC } from "@/lib/exportCasB";
+import { isCasB, sendCasA, sendCasB } from "@/lib/exportCasB";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { listMyUnknowns } from "@/lib/unknownProducts";
@@ -34,6 +35,7 @@ const Index = () => {
   const [reportOpen, setReportOpen] = useState(false);
   const [casEOpen, setCasEOpen] = useState(false);
   const [casDOpen, setCasDOpen] = useState(false);
+  const [casCOpen, setCasCOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
   const refreshPendingCount = useCallback(async () => {
@@ -164,13 +166,7 @@ const Index = () => {
             {online && lastCode && (
               <Button
                 variant="secondary"
-                onClick={() => {
-                  toast.promise(sendCasC(lastCode), {
-                    loading: "Envoi vers le Sheet…",
-                    success: "Ajouté à l'onglet C",
-                    error: (e) => `Échec: ${e.message}`,
-                  });
-                }}
+                onClick={() => setCasCOpen(true)}
                 className="touch-target gap-2"
               >
                 Envoyer au Sheet (onglet C)
@@ -234,6 +230,7 @@ const Index = () => {
       />
       <ReportCasEDialog open={casEOpen} onClose={() => setCasEOpen(false)} />
       <ReportCasDDialog open={casDOpen} onClose={() => setCasDOpen(false)} />
+      <ReportCasCDialog open={casCOpen} barcode={lastCode} onClose={() => setCasCOpen(false)} />
     </div>
   );
 };

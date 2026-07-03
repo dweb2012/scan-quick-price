@@ -47,16 +47,28 @@ export async function sendCasB(product: DolibarrProduct): Promise<void> {
  * On envoie le code (ref ou barcode) dans l'onglet C.
  */
 /** Envoi manuel vers l'onglet C après validation utilisateur. */
-export async function sendCasC(code: string): Promise<void> {
+export async function sendCasC(
+  code: string,
+  extras?: {
+    label?: string;
+    fournisseur?: string;
+    stock?: string;
+    emplacement?: string;
+    note?: string;
+    user?: string;
+  },
+): Promise<void> {
   if (!code) return;
   const payload = {
     sheet: "C",
     ref: "",
     barcode: code,
-    label: "",
-    stock: "",
-    emplacement: "",
-    fournisseur: "",
+    label: extras?.label ?? "",
+    stock: extras?.stock ?? "",
+    emplacement: extras?.emplacement ?? "",
+    fournisseur: extras?.fournisseur ?? "",
+    note: extras?.note ?? "",
+    user: extras?.user ?? "",
   };
   const { error } = await supabase.functions.invoke("export-cas-b", { body: payload });
   if (error) throw new Error(error.message);
