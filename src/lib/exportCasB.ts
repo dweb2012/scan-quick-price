@@ -46,3 +46,18 @@ export async function sendCasC(code: string): Promise<void> {
   const { error } = await supabase.functions.invoke("export-cas-b", { body: payload });
   if (error) throw new Error(error.message);
 }
+
+/** Envoi CAS E : produit sans code ni référence, absent de Dolibarr. */
+export async function sendCasE(payload: {
+  description: string;
+  emplacement?: string;
+  quantite?: string;
+  note?: string;
+  user?: string;
+  imageUrl?: string;
+}): Promise<void> {
+  const { error } = await supabase.functions.invoke("export-cas-b", {
+    body: { sheet: "E", ...payload },
+  });
+  if (error) throw new Error(error.message);
+}
