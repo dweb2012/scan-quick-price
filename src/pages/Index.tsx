@@ -12,6 +12,7 @@ import ReportUnknownDialog from "@/components/ReportUnknownDialog";
 import { searchProduct, DolibarrProduct, getSettings } from "@/lib/dolibarr";
 import { addToHistory } from "@/lib/history";
 import { cacheProduct, findCachedProduct } from "@/lib/productCache";
+import { exportCasBIfNeeded } from "@/lib/exportCasB";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { listMyUnknowns } from "@/lib/unknownProducts";
@@ -67,6 +68,7 @@ const Index = () => {
           setProduct(result);
           addToHistory(result);
           cacheProduct(result);
+          exportCasBIfNeeded(result);
           setLoading(false);
           return;
         }
