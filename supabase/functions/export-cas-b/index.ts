@@ -91,10 +91,10 @@ Deno.serve(async (req) => {
     const { ref, label, barcode, stock, emplacement, fournisseur, description, quantite, note, user, imageDataUrl } = body ?? {};
     const sheetName = ALLOWED_SHEETS.includes(body?.sheet) ? body.sheet : 'B';
     const isCasE = sheetName === 'E';
-    // Onglet E : 9 colonnes A→I (Photo | Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note | Etat)
-    // Onglets B/C/D : 8 colonnes B→I (col A "Photo" laissée vide)
-    const SHEET_RANGE = isCasE ? `${sheetName}!A:I` : `${sheetName}!B:I`;
-    const DEDUP_RANGE = `${sheetName}!B:C`;
+    // Tous les onglets ont 9 colonnes A→I : Photo | Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note | Etat
+    const SHEET_RANGE = `${sheetName}!A:I`;
+    // Lit A:C pour détecter les anciennes lignes décalées (Réf en A) + les nouvelles lignes alignées (Réf/Code en B:C)
+    const DEDUP_RANGE = `${sheetName}!A:C`;
 
     if (!isCasE && !ref && !barcode) {
       return new Response(JSON.stringify({ ok: false, error: 'ref or barcode required' }), {
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Vérification anti-doublon : lit les colonnes Réf + Code barre existantes (sauf CAS E, sans code)
+    // Vérification anti-doublon : lit Photo/Réf/Code barre pour couvrir les anciennes lignes décalées et les nouvelles lignes alignées
     if (!isCasE) try {
       const checkUrl = `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${DEDUP_RANGE}`;
       const checkRes = await fetch(checkUrl, {
@@ -149,10 +149,11 @@ Deno.serve(async (req) => {
         const rows: string[][] = data.values ?? [];
         const refStr = String(ref ?? '').trim();
         const barcodeStr = String(barcode ?? '').trim();
-        const exists = rows.some(([r, b]) => {
+        const exists = rows.some(([photoOrOldRef, r, b]) => {
+          const oldRef = String(photoOrOldRef ?? '').trim();
           const rr = String(r ?? '').trim();
           const bb = String(b ?? '').trim();
-          return (refStr && rr === refStr) || (barcodeStr && bb === barcodeStr);
+          return (refStr && (oldRef === refStr || rr === refStr)) || (barcodeStr && bb === barcodeStr);
         });
         if (exists) {
           return new Response(JSON.stringify({ ok: true, skipped: 'duplicate' }), {
@@ -170,7 +171,7 @@ Deno.serve(async (req) => {
     //   A: Photo | B: Réf (vide) | C: Code barre (vide) | D: Libellé (= description) |
     //   E: Marque (vide) | F: Stock (= quantité estimée) | G: Emplacement |
     //   H: Note (note + date + utilisateur) | I: Etat
-    // Onglets B/C/D — 8 colonnes B→I : Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note | Etat
+    // Onglets B/C/D — 9 colonnes A→I, avec Photo vide pour éviter le décalage : Photo | Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note | Etat
     const row = isCasE
       ? [
           // Mode 4 + 130x130 px : image affichée en grand quelle que soit la taille de la cellule
@@ -185,6 +186,7 @@ Deno.serve(async (req) => {
           'A traiter',
         ]
       : [
+          '',
           ref ?? '',
           barcode ?? '',
           label ?? '',
