@@ -149,11 +149,15 @@ Deno.serve(async (req) => {
         const rows: string[][] = data.values ?? [];
         const refStr = String(ref ?? '').trim();
         const barcodeStr = String(barcode ?? '').trim();
-        const exists = rows.some(([photoOrOldRef, r, b]) => {
-          const oldRef = String(photoOrOldRef ?? '').trim();
-          const rr = String(r ?? '').trim();
-          const bb = String(b ?? '').trim();
-          return (refStr && (oldRef === refStr || rr === refStr)) || (barcodeStr && bb === barcodeStr);
+        // On compare chaque code non vide (ref ET barcode) à TOUTES les colonnes A/B/C
+        // pour couvrir les anciennes lignes décalées (code en A ou B) et les nouvelles
+        // (Réf en B, Code barre en C). Ex : CAS C envoie le code en `barcode` (col C),
+        // mais une ancienne ligne peut l'avoir mis en col B (Réf) — il faut quand même
+        // détecter le doublon.
+        const candidates = [refStr, barcodeStr].filter(Boolean);
+        const exists = rows.some((cols) => {
+          const cells = [0, 1, 2].map((i) => String(cols?.[i] ?? '').trim()).filter(Boolean);
+          return candidates.some((c) => cells.includes(c));
         });
         if (exists) {
           return new Response(JSON.stringify({ ok: true, skipped: 'duplicate' }), {
