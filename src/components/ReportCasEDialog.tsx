@@ -11,8 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveAisle } from "@/hooks/use-active-aisle";
 import { z } from "zod";
 
-const BUCKET = "cas-e-photos";
-
 const schema = z.object({
   description: z.string().trim().min(3, "Description trop courte").max(300),
   quantite: z.string().trim().max(20).optional(),
@@ -70,19 +68,16 @@ const ReportCasEDialog = ({ open, onClose }: Props) => {
     try {
       const { data: userData, error: userErr } = await supabase.auth.getUser();
       if (userErr || !userData.user) throw new Error("Non authentifié");
-      const userId = userData.user.id;
 
       const compressed = await compressImage(photo);
-      const fileName = `${userId}/${crypto.randomUUID()}.jpg`;
-      const { error: upErr } = await supabase.storage
-        .from(BUCKET)
-        .upload(fileName, compressed, { contentType: "image/jpeg", cacheControl: "3600" });
-      if (upErr) throw new Error(`Upload photo : ${upErr.message}`);
-
-      // URL publique via proxy edge function — permet à Google Sheets d'afficher
-      // la photo via =IMAGE() alors que le bucket reste privé.
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID as string;
-      const imageUrl = `https://${projectId}.supabase.co/functions/v1/cas-e-image?path=${encodeURIComponent(fileName)}`;
+      // Encodage base64 : la photo est envoyée à l'edge function qui l'upload
+      // sur Google Drive du compte connecté (pas de stockage Supabase).
+      const imageDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Lecture de la photo impossible"));
+        reader.readAsDataURL(compressed);
+      });
 
       await sendCasE({
         description: description.trim(),
@@ -90,7 +85,7 @@ const ReportCasEDialog = ({ open, onClose }: Props) => {
         quantite: quantite.trim(),
         note: note.trim(),
         user: userData.user.email || "",
-        imageUrl,
+        imageDataUrl,
       });
 
       toast.success("Produit ajouté à l'onglet E");

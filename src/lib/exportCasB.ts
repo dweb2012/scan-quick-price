@@ -54,7 +54,7 @@ export async function sendCasE(payload: {
   quantite?: string;
   note?: string;
   user?: string;
-  imageUrl?: string;
+  imageDataUrl?: string;
 }): Promise<void> {
   const { error } = await supabase.functions.invoke("export-cas-b", {
     body: { sheet: "E", ...payload },
