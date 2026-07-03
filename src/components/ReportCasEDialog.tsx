@@ -79,9 +79,10 @@ const ReportCasEDialog = ({ open, onClose }: Props) => {
         .upload(fileName, compressed, { contentType: "image/jpeg", cacheControl: "3600" });
       if (upErr) throw new Error(`Upload photo : ${upErr.message}`);
 
-      // URL publique : nécessaire pour que =IMAGE() dans Google Sheets fonctionne.
-      const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
-      if (!pub?.publicUrl) throw new Error("Impossible de générer l'URL publique de la photo");
+      // URL publique via proxy edge function — permet à Google Sheets d'afficher
+      // la photo via =IMAGE() alors que le bucket reste privé.
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID as string;
+      const imageUrl = `https://${projectId}.supabase.co/functions/v1/cas-e-image?path=${encodeURIComponent(fileName)}`;
 
       await sendCasE({
         description: description.trim(),
@@ -89,7 +90,7 @@ const ReportCasEDialog = ({ open, onClose }: Props) => {
         quantite: quantite.trim(),
         note: note.trim(),
         user: userData.user.email || "",
-        imageUrl: pub.publicUrl,
+        imageUrl,
       });
 
       toast.success("Produit ajouté à l'onglet E");
