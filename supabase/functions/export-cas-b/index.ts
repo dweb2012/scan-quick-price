@@ -73,6 +73,7 @@ Deno.serve(async (req) => {
       stock ?? '',
       emplacement ?? '',
       `Export scan ${now}`,
+      'A traiter',
     ];
 
     const url = `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${SHEET_RANGE}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
