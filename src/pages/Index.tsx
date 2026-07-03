@@ -14,7 +14,7 @@ import ReportCasDDialog from "@/components/ReportCasDDialog";
 import { searchProduct, DolibarrProduct, getSettings } from "@/lib/dolibarr";
 import { addToHistory } from "@/lib/history";
 import { cacheProduct, findCachedProduct } from "@/lib/productCache";
-import { isCasB, sendCasB, sendCasC } from "@/lib/exportCasB";
+import { isCasB, sendCasA, sendCasB, sendCasC } from "@/lib/exportCasB";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { listMyUnknowns } from "@/lib/unknownProducts";
@@ -87,6 +87,10 @@ const Index = () => {
                 },
               },
             });
+          } else {
+            // CAS A : produit BMY nominal — envoi silencieux à l'onglet A
+            // (le dédoublonnage côté edge function évite les répétitions)
+            sendCasA(result).catch((e) => console.warn("CAS A export failed", e));
           }
           setLoading(false);
           return;

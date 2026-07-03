@@ -3,7 +3,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 const SPREADSHEET_ID = '1R0hK3jKIx70WjV3fHhSyaPhuLAMRdJCKpvpFMR2SIQs';
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/google_sheets/v4';
 const DRIVE_GATEWAY = 'https://connector-gateway.lovable.dev/google_drive';
-const ALLOWED_SHEETS = ['B', 'C', 'D', 'E'] as const;
+const ALLOWED_SHEETS = ['A', 'B', 'C', 'D', 'E'] as const;
 
 // Décode une data URL "data:image/jpeg;base64,xxxx" en {mime, bytes}
 function decodeDataUrl(dataUrl: string): { mime: string; bytes: Uint8Array } | null {
