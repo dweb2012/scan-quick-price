@@ -12,7 +12,7 @@ import ReportUnknownDialog from "@/components/ReportUnknownDialog";
 import { searchProduct, DolibarrProduct, getSettings } from "@/lib/dolibarr";
 import { addToHistory } from "@/lib/history";
 import { cacheProduct, findCachedProduct } from "@/lib/productCache";
-import { exportCasBIfNeeded } from "@/lib/exportCasB";
+import { exportCasBIfNeeded, exportCasCUnknown } from "@/lib/exportCasB";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { listMyUnknowns } from "@/lib/unknownProducts";
@@ -87,6 +87,8 @@ const Index = () => {
       toast.info("Résultat depuis le cache local", { icon: <WifiOff size={16} /> });
     } else {
       setError(online ? "Produit introuvable" : "Hors ligne — produit non trouvé dans le cache");
+      // CAS C : produit inconnu de Dolibarr → tracer dans le Google Sheet onglet C
+      if (online) exportCasCUnknown(code);
     }
 
     setLoading(false);
