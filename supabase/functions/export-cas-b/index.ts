@@ -1,7 +1,7 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
 const SPREADSHEET_ID = '1R0hK3jKIx70WjV3fHhSyaPhuLAMRdJCKpvpFMR2SIQs';
-const SHEET_RANGE = 'Feuille1!A:H';
+const SHEET_RANGE = 'B!A:H';
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/google_sheets/v4';
 
 Deno.serve(async (req) => {
@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { ref, label, barcode, price_ht, stock, emplacement, fournisseur } = body ?? {};
+    const { ref, label, barcode, stock, emplacement, fournisseur, photo } = body ?? {};
 
     if (!ref && !barcode) {
       return new Response(JSON.stringify({ ok: false, error: 'ref or barcode required' }), {
@@ -29,16 +29,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    const now = new Date().toISOString();
+    const now = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' });
+    // Colonnes du Sheet: Photo | Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note
     const row = [
+      photo ?? '',
       ref ?? '',
-      label ?? '',
       barcode ?? '',
-      price_ht ?? '',
+      label ?? '',
+      fournisseur ?? '',
       stock ?? '',
       emplacement ?? '',
-      fournisseur ?? '',
-      now,
+      `Export scan ${now}`,
     ];
 
     const url = `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${SHEET_RANGE}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
