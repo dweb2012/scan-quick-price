@@ -1,7 +1,7 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
 const SPREADSHEET_ID = '1R0hK3jKIx70WjV3fHhSyaPhuLAMRdJCKpvpFMR2SIQs';
-const SHEET_RANGE = 'B!A:H';
+const SHEET_RANGE = 'B!A:I';
 const DEDUP_RANGE = 'B!B:C'; // Colonnes Réf et Code barre
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/google_sheets/v4';
 
@@ -73,6 +73,7 @@ Deno.serve(async (req) => {
       stock ?? '',
       emplacement ?? '',
       `Export scan ${now}`,
+      'A traiter',
     ];
 
     const url = `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${SHEET_RANGE}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
