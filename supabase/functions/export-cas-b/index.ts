@@ -91,7 +91,9 @@ Deno.serve(async (req) => {
     const { ref, label, barcode, stock, emplacement, fournisseur, description, quantite, note, user, imageDataUrl } = body ?? {};
     const sheetName = ALLOWED_SHEETS.includes(body?.sheet) ? body.sheet : 'B';
     const isCasE = sheetName === 'E';
-    const SHEET_RANGE = isCasE ? `${sheetName}!A:H` : `${sheetName}!B:I`;
+    // Onglet E : 9 colonnes A→I (Photo | Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note | Etat)
+    // Onglets B/C/D : 8 colonnes B→I (col A "Photo" laissée vide)
+    const SHEET_RANGE = isCasE ? `${sheetName}!A:I` : `${sheetName}!B:I`;
     const DEDUP_RANGE = `${sheetName}!B:C`;
 
     if (!isCasE && !ref && !barcode) {
@@ -164,17 +166,22 @@ Deno.serve(async (req) => {
       console.warn('Dedup check error', e);
     }
 
-    // Colonnes standard (B→I): Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note | Etat
-    // Colonnes CAS E (A→H): Photo | Date | Description | Emplacement | Quantité | Note | Utilisateur | Etat
+    // Onglet E — 9 colonnes alignées sur les entêtes existants :
+    //   A: Photo | B: Réf (vide) | C: Code barre (vide) | D: Libellé (= description) |
+    //   E: Marque (vide) | F: Stock (= quantité estimée) | G: Emplacement |
+    //   H: Note (note + date + utilisateur) | I: Etat
+    // Onglets B/C/D — 8 colonnes B→I : Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note | Etat
     const row = isCasE
       ? [
-          driveImageUrl ? `=IMAGE("${driveImageUrl}")` : '',
-          now,
+          // Mode 4 + 130x130 px : image affichée en grand quelle que soit la taille de la cellule
+          driveImageUrl ? `=IMAGE("${driveImageUrl}", 4, 130, 130)` : '',
+          '',
+          '',
           description ?? '',
-          emplacement ?? '',
+          '',
           quantite ?? '',
-          note ?? '',
-          user ?? '',
+          emplacement ?? '',
+          [note, user, now].filter(Boolean).join(' • '),
           'A traiter',
         ]
       : [
@@ -206,6 +213,56 @@ Deno.serve(async (req) => {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // CAS E : agrandit la hauteur de la nouvelle ligne pour rendre la photo lisible
+    if (isCasE) try {
+      const appendJson = JSON.parse(text);
+      const updatedRange: string = appendJson?.updates?.updatedRange ?? '';
+      // Format attendu : "E!A5:I5" — on récupère 5
+      const rowMatch = /![A-Z]+(\d+):/.exec(updatedRange);
+      if (rowMatch) {
+        const rowIndex = parseInt(rowMatch[1], 10) - 1; // 0-based pour l'API
+        // Récupère le sheetId de l'onglet "E"
+        const metaRes = await fetch(
+          `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}?fields=sheets(properties(sheetId,title))`,
+          { headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'X-Connection-Api-Key': GOOGLE_SHEETS_API_KEY } },
+        );
+        if (metaRes.ok) {
+          const meta = await metaRes.json();
+          const sheet = (meta.sheets ?? []).find((s: any) => s?.properties?.title === sheetName);
+          const sheetId = sheet?.properties?.sheetId;
+          if (typeof sheetId === 'number') {
+            await fetch(
+              `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}:batchUpdate`,
+              {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${LOVABLE_API_KEY}`,
+                  'X-Connection-Api-Key': GOOGLE_SHEETS_API_KEY,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  requests: [{
+                    updateDimensionProperties: {
+                      range: {
+                        sheetId,
+                        dimension: 'ROWS',
+                        startIndex: rowIndex,
+                        endIndex: rowIndex + 1,
+                      },
+                      properties: { pixelSize: 140 },
+                      fields: 'pixelSize',
+                    },
+                  }],
+                }),
+              },
+            );
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('row height update failed', e);
     }
 
     return new Response(JSON.stringify({ ok: true }), {
