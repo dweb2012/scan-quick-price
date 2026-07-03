@@ -6,10 +6,14 @@ import type { DolibarrProduct } from "./dolibarr";
  * ajouter une ligne dans le Google Sheet de suivi.
  * Exécuté en tâche de fond — les erreurs ne bloquent pas l'UI.
  */
-export function exportCasBIfNeeded(product: DolibarrProduct): void {
+/** Détermine si un produit relève du CAS B (libellé sans "BMY"). */
+export function isCasB(product: DolibarrProduct): boolean {
   const label = (product.label || "").toUpperCase();
-  if (label.includes("BMY")) return; // CAS A -> rien à faire
+  return !label.includes("BMY");
+}
 
+/** Envoi manuel vers l'onglet B après validation utilisateur. */
+export async function sendCasB(product: DolibarrProduct): Promise<void> {
   const payload = {
     sheet: "B",
     ref: product.ref,
@@ -19,22 +23,17 @@ export function exportCasBIfNeeded(product: DolibarrProduct): void {
     emplacement: product.array_options?.options_emplacement || "",
     fournisseur: product.supplierName || "",
   };
-
-  supabase.functions
-    .invoke("export-cas-b", { body: payload })
-    .then(({ error }) => {
-      if (error) console.warn("Export CAS B échoué:", error.message);
-    })
-    .catch((e) => console.warn("Export CAS B échoué:", e));
+  const { error } = await supabase.functions.invoke("export-cas-b", { body: payload });
+  if (error) throw new Error(error.message);
 }
 
 /**
  * CAS C : produit introuvable dans Dolibarr mais scanné.
  * On envoie le code (ref ou barcode) dans l'onglet C.
  */
-export function exportCasCUnknown(code: string): void {
+/** Envoi manuel vers l'onglet C après validation utilisateur. */
+export async function sendCasC(code: string): Promise<void> {
   if (!code) return;
-  // On envoie le code à la fois comme ref et barcode pour maximiser la détection anti-doublon
   const payload = {
     sheet: "C",
     ref: "",
@@ -44,10 +43,6 @@ export function exportCasCUnknown(code: string): void {
     emplacement: "",
     fournisseur: "",
   };
-  supabase.functions
-    .invoke("export-cas-b", { body: payload })
-    .then(({ error }) => {
-      if (error) console.warn("Export CAS C échoué:", error.message);
-    })
-    .catch((e) => console.warn("Export CAS C échoué:", e));
+  const { error } = await supabase.functions.invoke("export-cas-b", { body: payload });
+  if (error) throw new Error(error.message);
 }
