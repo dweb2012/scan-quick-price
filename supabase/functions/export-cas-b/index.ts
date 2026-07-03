@@ -91,6 +91,7 @@ Deno.serve(async (req) => {
     const { ref, label, barcode, stock, emplacement, fournisseur, description, quantite, note, user, imageDataUrl } = body ?? {};
     const sheetName = ALLOWED_SHEETS.includes(body?.sheet) ? body.sheet : 'B';
     const isCasE = sheetName === 'E';
+    const isCasD = sheetName === 'D';
     // Tous les onglets ont 9 colonnes A→I : Photo | Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note | Etat
     const SHEET_RANGE = `${sheetName}!A:I`;
     // Lit A:C pour détecter les anciennes lignes décalées (Réf en A) + les nouvelles lignes alignées (Réf/Code en B:C)
@@ -108,12 +109,18 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    if (isCasD && !imageDataUrl) {
+      return new Response(JSON.stringify({ ok: false, error: 'photo required for CAS D' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     const now = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' });
 
-    // CAS E : upload de la photo sur Google Drive avant d'écrire la ligne
+    // CAS E + CAS D : upload de la photo sur Google Drive avant d'écrire la ligne
     let driveImageUrl = '';
-    if (isCasE && imageDataUrl) {
+    if ((isCasE || isCasD) && imageDataUrl) {
       if (!GOOGLE_DRIVE_API_KEY) {
         return new Response(
           JSON.stringify({ ok: false, error: 'Google Drive connector not configured' }),
@@ -128,7 +135,8 @@ Deno.serve(async (req) => {
       }
       const ext = decoded.mime.split('/')[1] || 'jpg';
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const name = `case-${stamp}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
+      const prefix = isCasE ? 'case' : 'casd';
+      const name = `${prefix}-${stamp}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
       driveImageUrl = await uploadToDrive(
         { lovable: LOVABLE_API_KEY, drive: GOOGLE_DRIVE_API_KEY },
         { name, mime: decoded.mime, bytes: decoded.bytes },
@@ -190,14 +198,14 @@ Deno.serve(async (req) => {
           'A traiter',
         ]
       : [
-          '',
+          driveImageUrl ? `=IMAGE("${driveImageUrl}", 4, 130, 130)` : '',
           ref ?? '',
           barcode ?? '',
           label ?? '',
           fournisseur ?? '',
           stock ?? '',
           emplacement ?? '',
-          `Export scan ${now}`,
+          [note, user ? `par ${user}` : '', `Export scan ${now}`].filter(Boolean).join(' • '),
           'A traiter',
         ];
 
@@ -221,8 +229,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // CAS E : agrandit la hauteur de la nouvelle ligne pour rendre la photo lisible
-    if (isCasE) try {
+    // Photo présente : agrandit la hauteur de la nouvelle ligne pour rendre la photo lisible
+    if (driveImageUrl) try {
       const appendJson = JSON.parse(text);
       const updatedRange: string = appendJson?.updates?.updatedRange ?? '';
       // Format attendu : "E!A5:I5" — on récupère 5
