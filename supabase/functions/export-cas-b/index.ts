@@ -1,9 +1,8 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
 const SPREADSHEET_ID = '1R0hK3jKIx70WjV3fHhSyaPhuLAMRdJCKpvpFMR2SIQs';
-const SHEET_RANGE = 'B!A:I';
-const DEDUP_RANGE = 'B!B:C'; // Colonnes Réf et Code barre
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/google_sheets/v4';
+const ALLOWED_SHEETS = ['B', 'C', 'D', 'E'] as const;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -22,6 +21,9 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const { ref, label, barcode, stock, emplacement, fournisseur } = body ?? {};
+    const sheetName = ALLOWED_SHEETS.includes(body?.sheet) ? body.sheet : 'B';
+    const SHEET_RANGE = `${sheetName}!A:I`;
+    const DEDUP_RANGE = `${sheetName}!B:C`;
 
     if (!ref && !barcode) {
       return new Response(JSON.stringify({ ok: false, error: 'ref or barcode required' }), {
@@ -63,7 +65,7 @@ Deno.serve(async (req) => {
       console.warn('Dedup check error', e);
     }
 
-    // Colonnes du Sheet (B→I): Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note | Etat
+    // Colonnes (B→I): Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note | Etat
     const row = [
       ref ?? '',
       barcode ?? '',
