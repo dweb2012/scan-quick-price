@@ -15,7 +15,7 @@ import ReportCasCDialog from "@/components/ReportCasCDialog";
 import { searchProduct, DolibarrProduct, getSettings } from "@/lib/dolibarr";
 import { addToHistory } from "@/lib/history";
 import { cacheProduct, findCachedProduct } from "@/lib/productCache";
-import { isCasB, sendCasA, sendCasB, sendCasC } from "@/lib/exportCasB";
+import { isCasB, sendCasA, sendCasB } from "@/lib/exportCasB";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { listMyUnknowns } from "@/lib/unknownProducts";
