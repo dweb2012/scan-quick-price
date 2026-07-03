@@ -92,10 +92,16 @@ Deno.serve(async (req) => {
     const sheetName = ALLOWED_SHEETS.includes(body?.sheet) ? body.sheet : 'B';
     const isCasE = sheetName === 'E';
     const isCasD = sheetName === 'D';
-    // Tous les onglets ont 9 colonnes A→I : Photo | Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note | Etat
-    const SHEET_RANGE = `${sheetName}!A:I`;
-    // Lit A:C pour détecter les anciennes lignes décalées (Réf en A) + les nouvelles lignes alignées (Réf/Code en B:C)
-    const DEDUP_RANGE = `${sheetName}!A:C`;
+    const hasPhotoCol = isCasE || isCasD;
+    // D + E : 9 colonnes A→I avec Photo en A
+    //   A: Photo | B: Réf | C: Code barre | D: Libellé | E: Marque | F: Stock | G: Emplacement | H: Note | I: Etat
+    // B + C : 8 colonnes A→H sans Photo
+    //   A: Réf | B: Code barre | C: Libellé | D: Marque | E: Stock | F: Emplacement | G: Note | H: Etat
+    const SHEET_RANGE = hasPhotoCol ? `${sheetName}!A:I` : `${sheetName}!A:H`;
+    // Dédoublonnage : on lit les colonnes contenant Réf/Code barre.
+    //   D/E : Réf en B, Code barre en C → lit A:C (A capte aussi d'anciennes lignes décalées)
+    //   B/C : Réf en A, Code barre en B → lit A:B
+    const DEDUP_RANGE = hasPhotoCol ? `${sheetName}!A:C` : `${sheetName}!A:B`;
 
     if (!isCasE && !ref && !barcode) {
       return new Response(JSON.stringify({ ok: false, error: 'ref or barcode required' }), {
@@ -183,7 +189,8 @@ Deno.serve(async (req) => {
     //   A: Photo | B: Réf (vide) | C: Code barre (vide) | D: Libellé (= description) |
     //   E: Marque (vide) | F: Stock (= quantité estimée) | G: Emplacement |
     //   H: Note (note + date + utilisateur) | I: Etat
-    // Onglets B/C/D — 9 colonnes A→I, avec Photo vide pour éviter le décalage : Photo | Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note | Etat
+    // Onglet D — 9 colonnes A→I : Photo | Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note | Etat
+    // Onglets B/C — 8 colonnes A→H (sans Photo) : Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note | Etat
     const row = isCasE
       ? [
           // Mode 4 + 130x130 px : image affichée en grand quelle que soit la taille de la cellule
@@ -197,8 +204,20 @@ Deno.serve(async (req) => {
           [note, user, now].filter(Boolean).join(' • '),
           'A traiter',
         ]
-      : [
+      : isCasD
+      ? [
           driveImageUrl ? `=IMAGE("${driveImageUrl}", 4, 130, 130)` : '',
+          ref ?? '',
+          barcode ?? '',
+          label ?? '',
+          fournisseur ?? '',
+          stock ?? '',
+          emplacement ?? '',
+          [note, user ? `par ${user}` : '', `Export scan ${now}`].filter(Boolean).join(' • '),
+          'A traiter',
+        ]
+      : [
+          // B / C : sans colonne Photo
           ref ?? '',
           barcode ?? '',
           label ?? '',
