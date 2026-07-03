@@ -12,7 +12,7 @@ import ReportUnknownDialog from "@/components/ReportUnknownDialog";
 import { searchProduct, DolibarrProduct, getSettings } from "@/lib/dolibarr";
 import { addToHistory } from "@/lib/history";
 import { cacheProduct, findCachedProduct } from "@/lib/productCache";
-import { exportCasBIfNeeded, exportCasCUnknown } from "@/lib/exportCasB";
+import { isCasB, sendCasB, sendCasC } from "@/lib/exportCasB";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { listMyUnknowns } from "@/lib/unknownProducts";
@@ -68,7 +68,22 @@ const Index = () => {
           setProduct(result);
           addToHistory(result);
           cacheProduct(result);
-          exportCasBIfNeeded(result);
+          if (isCasB(result)) {
+            toast("Produit hors BMY détecté", {
+              description: `${result.ref} — ${result.label}`,
+              duration: 10000,
+              action: {
+                label: "Envoyer au Sheet",
+                onClick: () => {
+                  toast.promise(sendCasB(result), {
+                    loading: "Envoi vers le Sheet…",
+                    success: "Ajouté à l'onglet B",
+                    error: (e) => `Échec: ${e.message}`,
+                  });
+                },
+              },
+            });
+          }
           setLoading(false);
           return;
         }
@@ -87,8 +102,6 @@ const Index = () => {
       toast.info("Résultat depuis le cache local", { icon: <WifiOff size={16} /> });
     } else {
       setError(online ? "Produit introuvable" : "Hors ligne — produit non trouvé dans le cache");
-      // CAS C : produit inconnu de Dolibarr → tracer dans le Google Sheet onglet C
-      if (online) exportCasCUnknown(code);
     }
 
     setLoading(false);
@@ -140,6 +153,21 @@ const Index = () => {
             >
               <ClipboardList size={16} /> Signaler à traiter
             </Button>
+            {online && lastCode && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  toast.promise(sendCasC(lastCode), {
+                    loading: "Envoi vers le Sheet…",
+                    success: "Ajouté à l'onglet C",
+                    error: (e) => `Échec: ${e.message}`,
+                  });
+                }}
+                className="touch-target gap-2"
+              >
+                Envoyer au Sheet (onglet C)
+              </Button>
+            )}
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleRetry} className="flex-1 touch-target gap-1">
                 <RefreshCw size={14} /> Réessayer
