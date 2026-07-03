@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Camera, Loader2, X, MapPin } from "lucide-react";
+import { Camera, Loader2, X, MapPin, AlertTriangle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { compressImage } from "@/lib/unknownProducts";
 import { sendCasE } from "@/lib/exportCasB";
@@ -30,8 +30,14 @@ const ReportCasEDialog = ({ open, onClose }: Props) => {
   const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
+
+  // Timeout au-delà duquel on abandonne et propose Réessayer (upload Drive
+  // lent ou connexion mobile instable).
+  const UPLOAD_TIMEOUT_MS = 30_000;
 
   const reset = () => {
     setDescription("");
@@ -42,6 +48,8 @@ const ReportCasEDialog = ({ open, onClose }: Props) => {
     setPreviewUrl(null);
     if (fileRef.current) fileRef.current.value = "";
     if (galleryRef.current) galleryRef.current.value = "";
+    setError(null);
+    setElapsed(0);
   };
 
   const handleFile = (f: File | null) => {
@@ -65,6 +73,12 @@ const ReportCasEDialog = ({ open, onClose }: Props) => {
     if (!photo) return toast.error("La photo est obligatoire pour un produit sans code");
 
     setSaving(true);
+    setError(null);
+    setElapsed(0);
+    const startedAt = Date.now();
+    const ticker = window.setInterval(() => {
+      setElapsed(Math.round((Date.now() - startedAt) / 1000));
+    }, 500);
     try {
       const { data: userData, error: userErr } = await supabase.auth.getUser();
       if (userErr || !userData.user) throw new Error("Non authentifié");
@@ -79,21 +93,34 @@ const ReportCasEDialog = ({ open, onClose }: Props) => {
         reader.readAsDataURL(compressed);
       });
 
-      await sendCasE({
-        description: description.trim(),
-        emplacement: activeAisle || "",
-        quantite: quantite.trim(),
-        note: note.trim(),
-        user: userData.user.email || "",
-        imageDataUrl,
-      });
+      // Race entre l'envoi et un timeout pour éviter un spinner infini
+      // si Google Drive ne répond pas.
+      await Promise.race([
+        sendCasE({
+          description: description.trim(),
+          emplacement: activeAisle || "",
+          quantite: quantite.trim(),
+          note: note.trim(),
+          user: userData.user.email || "",
+          imageDataUrl,
+        }),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Délai dépassé (${UPLOAD_TIMEOUT_MS / 1000}s) — Google Drive ne répond pas`)),
+            UPLOAD_TIMEOUT_MS,
+          ),
+        ),
+      ]);
 
       toast.success("Produit ajouté à l'onglet E");
       reset();
       onClose();
     } catch (e: any) {
-      toast.error(e?.message || "Erreur lors de l'envoi");
+      const msg = e?.message || "Erreur lors de l'envoi";
+      setError(msg);
+      toast.error(msg);
     } finally {
+      window.clearInterval(ticker);
       setSaving(false);
     }
   };
@@ -111,6 +138,40 @@ const ReportCasEDialog = ({ open, onClose }: Props) => {
               <MapPin size={14} className="text-primary" />
               <span className="text-muted-foreground">Allée :</span>
               <span className="font-bold text-primary">{activeAisle}</span>
+            </div>
+          )}
+
+          {saving && (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 flex items-start gap-3">
+              <Loader2 size={18} className="animate-spin text-primary mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">Envoi de la photo vers Google Drive…</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {elapsed}s / {UPLOAD_TIMEOUT_MS / 1000}s
+                  {elapsed > 10 ? " — connexion lente, patientez encore un peu." : ""}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {error && !saving && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 space-y-2">
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={18} className="text-destructive mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-destructive">Échec de l'envoi</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 break-words">{error}</p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={handleSave}
+                className="w-full touch-target gap-2"
+              >
+                <RefreshCw size={14} /> Réessayer l'envoi
+              </Button>
             </div>
           )}
 
@@ -205,7 +266,7 @@ const ReportCasEDialog = ({ open, onClose }: Props) => {
           </Button>
           <Button onClick={handleSave} disabled={saving} className="touch-target flex-1 gap-2">
             {saving ? <Loader2 size={16} className="animate-spin" /> : null}
-            Envoyer au Sheet
+            {error ? "Réessayer" : "Envoyer au Sheet"}
           </Button>
         </DialogFooter>
       </DialogContent>
