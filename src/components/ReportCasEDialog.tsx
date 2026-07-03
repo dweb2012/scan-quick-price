@@ -12,8 +12,6 @@ import { useActiveAisle } from "@/hooks/use-active-aisle";
 import { z } from "zod";
 
 const BUCKET = "cas-e-photos";
-// URL signée longue durée (~10 ans) pour que =IMAGE() reste stable dans le Sheet
-const SIGNED_URL_TTL = 60 * 60 * 24 * 365 * 10;
 
 const schema = z.object({
   description: z.string().trim().min(3, "Description trop courte").max(300),
@@ -81,10 +79,9 @@ const ReportCasEDialog = ({ open, onClose }: Props) => {
         .upload(fileName, compressed, { contentType: "image/jpeg", cacheControl: "3600" });
       if (upErr) throw new Error(`Upload photo : ${upErr.message}`);
 
-      const { data: signed, error: signErr } = await supabase.storage
-        .from(BUCKET)
-        .createSignedUrl(fileName, SIGNED_URL_TTL);
-      if (signErr || !signed) throw new Error("Impossible de générer l'URL de la photo");
+      // URL publique : nécessaire pour que =IMAGE() dans Google Sheets fonctionne.
+      const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(fileName);
+      if (!pub?.publicUrl) throw new Error("Impossible de générer l'URL publique de la photo");
 
       await sendCasE({
         description: description.trim(),
@@ -92,7 +89,7 @@ const ReportCasEDialog = ({ open, onClose }: Props) => {
         quantite: quantite.trim(),
         note: note.trim(),
         user: userData.user.email || "",
-        imageUrl: signed.signedUrl,
+        imageUrl: pub.publicUrl,
       });
 
       toast.success("Produit ajouté à l'onglet E");
