@@ -11,13 +11,13 @@ export function exportCasBIfNeeded(product: DolibarrProduct): void {
   if (label.includes("BMY")) return; // CAS A -> rien à faire
 
   const payload = {
+    sheet: "B",
     ref: product.ref,
     label: product.label,
     barcode: product.barcode,
     stock: product.stock_reel,
     emplacement: product.array_options?.options_emplacement || "",
     fournisseur: product.supplierName || "",
-    photo: product.imageUrl || "",
   };
 
   supabase.functions
@@ -26,4 +26,28 @@ export function exportCasBIfNeeded(product: DolibarrProduct): void {
       if (error) console.warn("Export CAS B échoué:", error.message);
     })
     .catch((e) => console.warn("Export CAS B échoué:", e));
+}
+
+/**
+ * CAS C : produit introuvable dans Dolibarr mais scanné.
+ * On envoie le code (ref ou barcode) dans l'onglet C.
+ */
+export function exportCasCUnknown(code: string): void {
+  if (!code) return;
+  // On envoie le code à la fois comme ref et barcode pour maximiser la détection anti-doublon
+  const payload = {
+    sheet: "C",
+    ref: "",
+    barcode: code,
+    label: "",
+    stock: "",
+    emplacement: "",
+    fournisseur: "",
+  };
+  supabase.functions
+    .invoke("export-cas-b", { body: payload })
+    .then(({ error }) => {
+      if (error) console.warn("Export CAS C échoué:", error.message);
+    })
+    .catch((e) => console.warn("Export CAS C échoué:", e));
 }
