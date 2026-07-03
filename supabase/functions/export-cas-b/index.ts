@@ -2,6 +2,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
 const SPREADSHEET_ID = '1R0hK3jKIx70WjV3fHhSyaPhuLAMRdJCKpvpFMR2SIQs';
 const SHEET_RANGE = 'B!A:H';
+const DEDUP_RANGE = 'B!B:C'; // Colonnes Réf et Code barre
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/google_sheets/v4';
 
 Deno.serve(async (req) => {
@@ -30,6 +31,38 @@ Deno.serve(async (req) => {
     }
 
     const now = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' });
+
+    // Vérification anti-doublon : lit les colonnes Réf + Code barre existantes
+    try {
+      const checkUrl = `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${DEDUP_RANGE}`;
+      const checkRes = await fetch(checkUrl, {
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          'X-Connection-Api-Key': GOOGLE_SHEETS_API_KEY,
+        },
+      });
+      if (checkRes.ok) {
+        const data = await checkRes.json();
+        const rows: string[][] = data.values ?? [];
+        const refStr = String(ref ?? '').trim();
+        const barcodeStr = String(barcode ?? '').trim();
+        const exists = rows.some(([r, b]) => {
+          const rr = String(r ?? '').trim();
+          const bb = String(b ?? '').trim();
+          return (refStr && rr === refStr) || (barcodeStr && bb === barcodeStr);
+        });
+        if (exists) {
+          return new Response(JSON.stringify({ ok: true, skipped: 'duplicate' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      } else {
+        console.warn('Dedup check failed', checkRes.status, await checkRes.text());
+      }
+    } catch (e) {
+      console.warn('Dedup check error', e);
+    }
+
     // Colonnes du Sheet: Photo | Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note
     const row = [
       photo ?? '',
