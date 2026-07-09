@@ -14,6 +14,7 @@ export function isCasB(product: DolibarrProduct): boolean {
 
 /** Envoi vers l'onglet A (produit BMY trouvé dans Dolibarr — cas nominal). */
 export async function sendCasA(product: DolibarrProduct): Promise<void> {
+  const { data: userData } = await supabase.auth.getUser();
   const payload = {
     sheet: "A",
     ref: product.ref,
@@ -22,6 +23,7 @@ export async function sendCasA(product: DolibarrProduct): Promise<void> {
     stock: product.stock_reel,
     emplacement: product.array_options?.options_emplacement || "",
     fournisseur: product.supplierName || "",
+    user: userData.user?.email || "",
   };
   const { error } = await supabase.functions.invoke("export-cas-b", { body: payload });
   if (error) throw new Error(error.message);
@@ -29,6 +31,7 @@ export async function sendCasA(product: DolibarrProduct): Promise<void> {
 
 /** Envoi manuel vers l'onglet B après validation utilisateur. */
 export async function sendCasB(product: DolibarrProduct): Promise<void> {
+  const { data: userData } = await supabase.auth.getUser();
   const payload = {
     sheet: "B",
     ref: product.ref,
@@ -37,6 +40,7 @@ export async function sendCasB(product: DolibarrProduct): Promise<void> {
     stock: product.stock_reel,
     emplacement: product.array_options?.options_emplacement || "",
     fournisseur: product.supplierName || "",
+    user: userData.user?.email || "",
   };
   const { error } = await supabase.functions.invoke("export-cas-b", { body: payload });
   if (error) throw new Error(error.message);
