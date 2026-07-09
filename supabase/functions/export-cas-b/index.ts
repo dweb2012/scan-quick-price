@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
     const row = isCasE
       ? [
           // Mode 4 + 130x130 px. Le Google Sheet est en locale FR : séparateur d'arguments = point-virgule.
-          driveImageUrl ? `=IMAGE("${driveImageUrl}"; 4; 130; 130)` : '',
+          driveImageUrl ? `=IMAGE("${driveImageUrl}"; 4; 240; 240)` : '',
           '',
           '',
           description ?? '',
@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
         ]
       : isCasD
       ? [
-          driveImageUrl ? `=IMAGE("${driveImageUrl}"; 4; 130; 130)` : '',
+          driveImageUrl ? `=IMAGE("${driveImageUrl}"; 4; 240; 240)` : '',
           ref ?? '',
           barcode ?? '',
           label ?? '',
@@ -251,7 +251,7 @@ Deno.serve(async (req) => {
                         startIndex: rowIndex,
                         endIndex: rowIndex + 1,
                       },
-                      properties: { pixelSize: 140 },
+                      properties: { pixelSize: 250 },
                       fields: 'pixelSize',
                     },
                   }],
