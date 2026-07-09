@@ -65,8 +65,8 @@ export async function sendCasC(
   if (!code) return;
   const payload = {
     sheet: "C",
-    ref: "",
-    barcode: code,
+    ref: code,
+    barcode: "",
     label: extras?.label ?? "",
     stock: extras?.stock ?? "",
     emplacement: extras?.emplacement ?? "",
