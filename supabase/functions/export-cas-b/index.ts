@@ -160,8 +160,8 @@ Deno.serve(async (req) => {
     // Onglets B/C — 8 colonnes A→H (sans Photo) : Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note | Etat
     const row = isCasE
       ? [
-          // Mode 4 + 130x130 px : image affichée en grand quelle que soit la taille de la cellule
-          driveImageUrl ? `=IMAGE("${driveImageUrl}", 4, 130, 130)` : '',
+          // Mode 4 + 130x130 px. Le Google Sheet est en locale FR : séparateur d'arguments = point-virgule.
+          driveImageUrl ? `=IMAGE("${driveImageUrl}"; 4; 130; 130)` : '',
           '',
           '',
           description ?? '',
@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
         ]
       : isCasD
       ? [
-          driveImageUrl ? `=IMAGE("${driveImageUrl}", 4, 130, 130)` : '',
+          driveImageUrl ? `=IMAGE("${driveImageUrl}"; 4; 130; 130)` : '',
           ref ?? '',
           barcode ?? '',
           label ?? '',
