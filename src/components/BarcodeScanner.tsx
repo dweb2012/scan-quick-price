@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { autocompleteProducts, DolibarrProduct } from "@/lib/dolibarr";
 import { parseAisleCode, setActiveAisle, isAislePayload, AISLE_PREFIX } from "@/lib/aisle";
 import { toast } from "sonner";
+import OnScreenKeyboard from "./OnScreenKeyboard";
 
 interface BarcodeScannerProps {
   onScan: (code: string) => void;
@@ -16,6 +17,7 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
   const [scanning, setScanning] = useState(false);
   const [manualMode, setManualMode] = useState(false);
   const [manualValue, setManualValue] = useState("");
+  const [virtualKb, setVirtualKb] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<DolibarrProduct[]>([]);
   const [autocompleteLoading, setAutocompleteLoading] = useState(false);
@@ -205,6 +207,14 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
     }
   };
 
+  const handleVirtualKey = (char: string) => {
+    handleInputChange(manualValue + char);
+  };
+
+  const handleVirtualBackspace = () => {
+    handleInputChange(manualValue.slice(0, -1));
+  };
+
   return (
     <div className="flex flex-col items-center justify-center flex-1 px-4 py-6 gap-6">
       {/* Scanner viewport — hidden in manual mode */}
@@ -287,6 +297,8 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
                 className="touch-target text-base pl-9"
                 onKeyDown={(e) => e.key === "Enter" && handleManualSubmit()}
                 autoFocus
+                readOnly={virtualKb}
+                inputMode={virtualKb ? "none" : undefined}
               />
             </div>
             <Button
@@ -297,6 +309,22 @@ const BarcodeScanner = ({ onScan, loading }: BarcodeScannerProps) => {
               OK
             </Button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setVirtualKb((v) => !v)}
+            className="mt-2 text-xs text-primary underline"
+          >
+            {virtualKb ? "Masquer le clavier virtuel" : "Afficher le clavier virtuel (scanner HID branché)"}
+          </button>
+
+          {virtualKb && (
+            <OnScreenKeyboard
+              onKey={handleVirtualKey}
+              onBackspace={handleVirtualBackspace}
+              onEnter={handleManualSubmit}
+            />
+          )}
 
           {/* Autocomplete dropdown */}
           {(suggestions.length > 0 || autocompleteLoading) && (
