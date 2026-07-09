@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, MapPin } from "lucide-react";
 import { toast } from "sonner";
-import { sendCasC } from "@/lib/exportCasB";
+import { sendCasC, getCurrentUserLabel } from "@/lib/exportCasB";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveAisle } from "@/hooks/use-active-aisle";
 
@@ -42,12 +42,13 @@ const ReportCasCDialog = ({ open, barcode, onClose }: Props) => {
     try {
       const { data: userData, error: userErr } = await supabase.auth.getUser();
       if (userErr || !userData.user) throw new Error("Non authentifié");
+      const userLabel = await getCurrentUserLabel();
       await sendCasC(barcode, {
         fournisseur: marque.trim(),
         stock: stock.trim(),
         emplacement: emplacement.trim() || activeAisle || "",
         note: note.trim(),
-        user: userData.user.email || "",
+        user: userLabel,
       });
       toast.success("Ajouté à l'onglet C");
       reset();

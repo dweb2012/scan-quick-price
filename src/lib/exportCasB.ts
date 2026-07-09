@@ -1,6 +1,19 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { DolibarrProduct } from "./dolibarr";
 
+/** Récupère le nom d'affichage de l'utilisateur courant (fallback: email). */
+async function getCurrentUserLabel(): Promise<string> {
+  const { data: userData } = await supabase.auth.getUser();
+  const user = userData.user;
+  if (!user) return "";
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  return profile?.display_name || user.email || "";
+}
+
 /**
  * CAS B : si le libellé du produit scanné ne contient pas "BMY",
  * ajouter une ligne dans le Google Sheet de suivi.
@@ -14,7 +27,7 @@ export function isCasB(product: DolibarrProduct): boolean {
 
 /** Envoi vers l'onglet A (produit BMY trouvé dans Dolibarr — cas nominal). */
 export async function sendCasA(product: DolibarrProduct): Promise<void> {
-  const { data: userData } = await supabase.auth.getUser();
+  const userLabel = await getCurrentUserLabel();
   const payload = {
     sheet: "A",
     ref: product.ref,
@@ -23,7 +36,7 @@ export async function sendCasA(product: DolibarrProduct): Promise<void> {
     stock: product.stock_reel,
     emplacement: product.array_options?.options_emplacement || "",
     fournisseur: product.supplierName || "",
-    user: userData.user?.email || "",
+    user: userLabel,
   };
   const { error } = await supabase.functions.invoke("export-cas-b", { body: payload });
   if (error) throw new Error(error.message);
@@ -31,7 +44,7 @@ export async function sendCasA(product: DolibarrProduct): Promise<void> {
 
 /** Envoi manuel vers l'onglet B après validation utilisateur. */
 export async function sendCasB(product: DolibarrProduct): Promise<void> {
-  const { data: userData } = await supabase.auth.getUser();
+  const userLabel = await getCurrentUserLabel();
   const payload = {
     sheet: "B",
     ref: product.ref,
@@ -40,11 +53,13 @@ export async function sendCasB(product: DolibarrProduct): Promise<void> {
     stock: product.stock_reel,
     emplacement: product.array_options?.options_emplacement || "",
     fournisseur: product.supplierName || "",
-    user: userData.user?.email || "",
+    user: userLabel,
   };
   const { error } = await supabase.functions.invoke("export-cas-b", { body: payload });
   if (error) throw new Error(error.message);
 }
+
+export { getCurrentUserLabel };
 
 /**
  * CAS C : produit introuvable dans Dolibarr mais scanné.

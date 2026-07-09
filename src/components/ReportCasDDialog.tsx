@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Camera, Loader2, X, MapPin, AlertTriangle, RefreshCw, Search, Check } from "lucide-react";
 import { toast } from "sonner";
 import { compressImage } from "@/lib/unknownProducts";
-import { sendCasD } from "@/lib/exportCasB";
+import { sendCasD, getCurrentUserLabel } from "@/lib/exportCasB";
 import { autocompleteProducts, DolibarrProduct } from "@/lib/dolibarr";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveAisle } from "@/hooks/use-active-aisle";
@@ -102,6 +102,7 @@ const ReportCasDDialog = ({ open, onClose }: Props) => {
     try {
       const { data: userData, error: userErr } = await supabase.auth.getUser();
       if (userErr || !userData.user) throw new Error("Non authentifié");
+      const userLabel = await getCurrentUserLabel();
 
       const compressed = await compressImage(photo);
       const imageDataUrl = await new Promise<string>((resolve, reject) => {
@@ -119,7 +120,7 @@ const ReportCasDDialog = ({ open, onClose }: Props) => {
           },
           emplacement: emplacement.trim() || activeAisle || "",
           note: note.trim(),
-          user: userData.user.email || "",
+          user: userLabel,
           imageDataUrl,
         }),
         new Promise((_, reject) =>
