@@ -17,6 +17,15 @@ const SettingsPanel = () => {
   const [testing, setTesting] = useState(false);
   const [loadingSettings, setLoadingSettings] = useState(true);
 
+  // Compte utilisateur
+  const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+
   // Supplier discounts
   const [discounts, setDiscounts] = useState<SupplierDiscount[]>([]);
   const [newName, setNewName] = useState("");
@@ -35,12 +44,73 @@ const SettingsPanel = () => {
     Promise.all([
       getSettings().then((s) => { setBaseUrl(s.baseUrl); setApiKey(s.apiKey); }),
       loadDiscounts(),
+      loadProfile(),
     ]).finally(() => setLoadingSettings(false));
   }, []);
 
   const loadDiscounts = async () => {
     const data = await getSupplierDiscounts();
     setDiscounts(data);
+  };
+
+  const loadProfile = async () => {
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData.user;
+    if (!user) return;
+    setEmail(user.email || "");
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    setDisplayName(profile?.display_name || "");
+  };
+
+  const handleSaveProfile = async () => {
+    const name = displayName.trim();
+    if (name.length > 100) {
+      toast.error("Nom trop long (max 100 caractères)");
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData.user;
+      if (!user) throw new Error("Non authentifié");
+      const { error } = await supabase
+        .from("profiles")
+        .update({ display_name: name || null })
+        .eq("user_id", user.id);
+      if (error) throw error;
+      toast.success("Nom mis à jour");
+    } catch (e: any) {
+      toast.error(e?.message || "Erreur");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (newPassword.length < 6) {
+      toast.error("Le mot de passe doit contenir au moins 6 caractères");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Les mots de passe ne correspondent pas");
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      toast.success("Mot de passe modifié");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (e: any) {
+      toast.error(e?.message || "Erreur");
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   const handleSave = async () => {
@@ -102,8 +172,80 @@ const SettingsPanel = () => {
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+      {/* Compte utilisateur */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+          Mon compte
+        </h3>
+        {email && (
+          <div className="text-xs text-muted-foreground">
+            Connecté en tant que <span className="font-semibold text-foreground">{email}</span>
+          </div>
+        )}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold">Nom affiché</label>
+          <div className="flex gap-2">
+            <Input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Votre nom"
+              maxLength={100}
+              className="touch-target text-base flex-1"
+            />
+            <Button
+              onClick={handleSaveProfile}
+              disabled={savingProfile}
+              className="touch-target"
+            >
+              {savingProfile ? <Loader2 size={16} className="animate-spin" /> : "Enregistrer"}
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-2 pt-2">
+          <label className="text-sm font-semibold">Nouveau mot de passe</label>
+          <div className="flex gap-2">
+            <Input
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              type={showPassword ? "text" : "password"}
+              placeholder="Min. 6 caractères"
+              minLength={6}
+              className="touch-target text-base flex-1"
+              autoComplete="new-password"
+            />
+            <Button
+              variant="outline"
+              size="icon"
+              className="touch-target"
+              onClick={() => setShowPassword((s) => !s)}
+              type="button"
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </Button>
+          </div>
+          <Input
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            type={showPassword ? "text" : "password"}
+            placeholder="Confirmer le mot de passe"
+            className="touch-target text-base"
+            autoComplete="new-password"
+          />
+          <Button
+            onClick={handleChangePassword}
+            disabled={changingPassword || !newPassword || !confirmPassword}
+            className="w-full touch-target"
+            variant="secondary"
+          >
+            {changingPassword ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
+            Modifier le mot de passe
+          </Button>
+        </div>
+      </div>
+
       {/* Connection settings */}
-      <div className="space-y-2">
+      <div className="space-y-2 border-t border-border pt-5">
         <label className="text-sm font-semibold">URL Dolibarr</label>
         <Input
           value={baseUrl}
