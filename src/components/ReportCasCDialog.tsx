@@ -40,13 +40,14 @@ const ReportCasCDialog = ({ open, barcode, onClose }: Props) => {
     if (!barcode) return toast.error("Code manquant");
     setSaving(true);
     try {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData, error: userErr } = await supabase.auth.getUser();
+      if (userErr || !userData.user) throw new Error("Non authentifié");
       await sendCasC(barcode, {
         fournisseur: marque.trim(),
         stock: stock.trim(),
         emplacement: emplacement.trim() || activeAisle || "",
         note: note.trim(),
-        user: userData.user?.email || "",
+        user: userData.user.email || "",
       });
       toast.success("Ajouté à l'onglet C");
       reset();
