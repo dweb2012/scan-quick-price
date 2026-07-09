@@ -243,18 +243,32 @@ Deno.serve(async (req) => {
                   'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                  requests: [{
-                    updateDimensionProperties: {
-                      range: {
-                        sheetId,
-                        dimension: 'ROWS',
-                        startIndex: rowIndex,
-                        endIndex: rowIndex + 1,
+                  requests: [
+                    {
+                      updateDimensionProperties: {
+                        range: {
+                          sheetId,
+                          dimension: 'ROWS',
+                          startIndex: rowIndex,
+                          endIndex: rowIndex + 1,
+                        },
+                        properties: { pixelSize: 250 },
+                        fields: 'pixelSize',
                       },
-                      properties: { pixelSize: 250 },
-                      fields: 'pixelSize',
                     },
-                  }],
+                    {
+                      updateDimensionProperties: {
+                        range: {
+                          sheetId,
+                          dimension: 'COLUMNS',
+                          startIndex: 0,
+                          endIndex: 1,
+                        },
+                        properties: { pixelSize: 250 },
+                        fields: 'pixelSize',
+                      },
+                    },
+                  ],
                 }),
               },
             );
