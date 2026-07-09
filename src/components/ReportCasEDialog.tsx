@@ -26,6 +26,7 @@ const ReportCasEDialog = ({ open, onClose }: Props) => {
   const activeAisle = useActiveAisle();
   const [description, setDescription] = useState("");
   const [quantite, setQuantite] = useState("");
+  const [emplacement, setEmplacement] = useState("");
   const [note, setNote] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -42,6 +43,7 @@ const ReportCasEDialog = ({ open, onClose }: Props) => {
   const reset = () => {
     setDescription("");
     setQuantite("");
+    setEmplacement("");
     setNote("");
     setPhoto(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -98,7 +100,7 @@ const ReportCasEDialog = ({ open, onClose }: Props) => {
       await Promise.race([
         sendCasE({
           description: description.trim(),
-          emplacement: activeAisle || "",
+          emplacement: emplacement.trim() || activeAisle || "",
           quantite: quantite.trim(),
           note: note.trim(),
           user: userData.user.email || "",
@@ -196,6 +198,17 @@ const ReportCasEDialog = ({ open, onClose }: Props) => {
               placeholder="Ex: 12"
               inputMode="numeric"
               maxLength={20}
+              className="text-base"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold">Emplacement (optionnel)</label>
+            <Input
+              value={emplacement}
+              onChange={(e) => setEmplacement(e.target.value)}
+              placeholder={activeAisle || "Ex: A12"}
+              maxLength={50}
               className="text-base"
             />
           </div>

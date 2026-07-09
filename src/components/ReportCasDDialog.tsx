@@ -25,6 +25,8 @@ const ReportCasDDialog = ({ open, onClose }: Props) => {
   const [searching, setSearching] = useState(false);
   const [selected, setSelected] = useState<DolibarrProduct | null>(null);
   const [note, setNote] = useState("");
+  const [stock, setStock] = useState("");
+  const [emplacement, setEmplacement] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -60,6 +62,8 @@ const ReportCasDDialog = ({ open, onClose }: Props) => {
     setSuggestions([]);
     setSelected(null);
     setNote("");
+    setStock("");
+    setEmplacement("");
     setPhoto(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
@@ -109,8 +113,11 @@ const ReportCasDDialog = ({ open, onClose }: Props) => {
 
       await Promise.race([
         sendCasD({
-          product: selected,
-          emplacement: activeAisle || "",
+          product: {
+            ...selected,
+            stock_reel: stock.trim() !== "" ? Number(stock) : selected.stock_reel,
+          },
+          emplacement: emplacement.trim() || activeAisle || "",
           note: note.trim(),
           user: userData.user.email || "",
           imageDataUrl,
@@ -267,6 +274,30 @@ const ReportCasDDialog = ({ open, onClose }: Props) => {
               rows={2}
               maxLength={500}
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold">Stock (optionnel)</label>
+              <Input
+                value={stock}
+                onChange={(e) => setStock(e.target.value)}
+                placeholder={selected ? String(selected.stock_reel ?? 0) : "Ex: 12"}
+                inputMode="numeric"
+                maxLength={20}
+                className="text-base"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold">Emplacement (optionnel)</label>
+              <Input
+                value={emplacement}
+                onChange={(e) => setEmplacement(e.target.value)}
+                placeholder={activeAisle || selected?.array_options?.options_emplacement || "Ex: A12"}
+                maxLength={50}
+                className="text-base"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
