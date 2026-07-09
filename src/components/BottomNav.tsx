@@ -12,8 +12,6 @@ interface BottomNavProps {
 const BottomNav = ({ active, onChange, showAdmin, unknownPendingCount = 0 }: BottomNavProps) => {
   const items: { id: Tab; label: string; icon: typeof ScanLine }[] = [
     { id: "scanner", label: "Scanner", icon: ScanLine },
-    { id: "history", label: "Historique", icon: History },
-    { id: "unknown", label: "À traiter", icon: ClipboardList },
     { id: "settings", label: "Paramètres", icon: Settings },
   ];
 
