@@ -68,9 +68,10 @@ async function uploadToDrive(
   if (!permRes.ok) console.warn('Drive permission', permRes.status, await permRes.text());
 
   // URL affichable par =IMAGE() dans Google Sheets.
-  // `lh3.googleusercontent.com/d/{id}` ne sert plus le binaire directement (redirection HTML)
-  // → =IMAGE() renvoie #ERROR!. `drive.google.com/thumbnail` reste servi en image brute.
-  return `https://drive.google.com/thumbnail?id=${id}&sz=w1000`;
+  // `drive.google.com/thumbnail` renvoie parfois #ERROR! (bloqué côté Sheets),
+  // `lh3.googleusercontent.com/d/{id}=w1000` sert l'image brute et fonctionne
+  // avec =IMAGE() sur les fichiers Drive publics.
+  return `https://lh3.googleusercontent.com/d/${id}=w1000`;
 }
 
 Deno.serve(async (req) => {
