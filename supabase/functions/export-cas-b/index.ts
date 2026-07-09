@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
     const row = isCasE
       ? [
           // Mode 4 + 130x130 px. Le Google Sheet est en locale FR : séparateur d'arguments = point-virgule.
-          driveImageUrl ? `=IMAGE("${driveImageUrl}"; 4; 130; 130)` : '',
+          driveImageUrl ? `=IMAGE("${driveImageUrl}"; 4; 240; 240)` : '',
           '',
           '',
           description ?? '',
@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
         ]
       : isCasD
       ? [
-          driveImageUrl ? `=IMAGE("${driveImageUrl}"; 4; 130; 130)` : '',
+          driveImageUrl ? `=IMAGE("${driveImageUrl}"; 4; 240; 240)` : '',
           ref ?? '',
           barcode ?? '',
           label ?? '',
@@ -243,18 +243,32 @@ Deno.serve(async (req) => {
                   'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                  requests: [{
-                    updateDimensionProperties: {
-                      range: {
-                        sheetId,
-                        dimension: 'ROWS',
-                        startIndex: rowIndex,
-                        endIndex: rowIndex + 1,
+                  requests: [
+                    {
+                      updateDimensionProperties: {
+                        range: {
+                          sheetId,
+                          dimension: 'ROWS',
+                          startIndex: rowIndex,
+                          endIndex: rowIndex + 1,
+                        },
+                        properties: { pixelSize: 250 },
+                        fields: 'pixelSize',
                       },
-                      properties: { pixelSize: 140 },
-                      fields: 'pixelSize',
                     },
-                  }],
+                    {
+                      updateDimensionProperties: {
+                        range: {
+                          sheetId,
+                          dimension: 'COLUMNS',
+                          startIndex: 0,
+                          endIndex: 1,
+                        },
+                        properties: { pixelSize: 250 },
+                        fields: 'pixelSize',
+                      },
+                    },
+                  ],
                 }),
               },
             );
