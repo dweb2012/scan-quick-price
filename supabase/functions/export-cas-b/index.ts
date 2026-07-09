@@ -1,8 +1,9 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const SPREADSHEET_ID = '1R0hK3jKIx70WjV3fHhSyaPhuLAMRdJCKpvpFMR2SIQs';
 const GATEWAY_URL = 'https://connector-gateway.lovable.dev/google_sheets/v4';
-const DRIVE_GATEWAY = 'https://connector-gateway.lovable.dev/google_drive';
+const PHOTO_BUCKET = 'sheet-photos';
 const ALLOWED_SHEETS = ['A', 'B', 'C', 'D', 'E'] as const;
 
 // Décode une data URL "data:image/jpeg;base64,xxxx" en {mime, bytes}
@@ -15,63 +16,23 @@ function decodeDataUrl(dataUrl: string): { mime: string; bytes: Uint8Array } | n
   return { mime: m[1], bytes };
 }
 
-// Upload une image sur Google Drive (compte du connecteur), la rend lisible
-// par lien, et renvoie une URL affichable par la formule =IMAGE().
-async function uploadToDrive(
-  auth: { lovable: string; drive: string },
+// Upload une image sur Supabase Storage et retourne une URL signée
+// longue durée (10 ans) — fiable avec la formule =IMAGE() de Google Sheets
+// car l'URL sert directement le binaire avec le bon Content-Type.
+async function uploadToStorage(
+  supabase: ReturnType<typeof createClient>,
   file: { name: string; mime: string; bytes: Uint8Array },
 ): Promise<string> {
-  // 1. Upload multipart (métadonnées + contenu binaire en une requête)
-  const boundary = `----lovable${crypto.randomUUID()}`;
-  const enc = new TextEncoder();
-  const metadata = { name: file.name, mimeType: file.mime };
-  const preamble = enc.encode(
-    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
-      JSON.stringify(metadata) +
-      `\r\n--${boundary}\r\nContent-Type: ${file.mime}\r\n\r\n`,
-  );
-  const closing = enc.encode(`\r\n--${boundary}--`);
-  const body = new Uint8Array(preamble.length + file.bytes.length + closing.length);
-  body.set(preamble, 0);
-  body.set(file.bytes, preamble.length);
-  body.set(closing, preamble.length + file.bytes.length);
+  const { error: upErr } = await supabase.storage
+    .from(PHOTO_BUCKET)
+    .upload(file.name, file.bytes, { contentType: file.mime, upsert: false });
+  if (upErr) throw new Error(`Storage upload: ${upErr.message}`);
 
-  const upRes = await fetch(
-    `${DRIVE_GATEWAY}/upload/drive/v3/files?uploadType=multipart&fields=id`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${auth.lovable}`,
-        'X-Connection-Api-Key': auth.drive,
-        'Content-Type': `multipart/related; boundary=${boundary}`,
-      },
-      body,
-    },
-  );
-  if (!upRes.ok) throw new Error(`Drive upload ${upRes.status}: ${(await upRes.text()).slice(0, 300)}`);
-  const { id } = await upRes.json();
-  if (!id) throw new Error('Drive upload: id manquant');
-
-  // 2. Permission publique (lecture par lien)
-  const permRes = await fetch(
-    `${DRIVE_GATEWAY}/drive/v3/files/${id}/permissions`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${auth.lovable}`,
-        'X-Connection-Api-Key': auth.drive,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ role: 'reader', type: 'anyone' }),
-    },
-  );
-  if (!permRes.ok) console.warn('Drive permission', permRes.status, await permRes.text());
-
-  // URL affichable par =IMAGE() dans Google Sheets.
-  // `drive.google.com/thumbnail` renvoie parfois #ERROR! (bloqué côté Sheets),
-  // `lh3.googleusercontent.com/d/{id}=w1000` sert l'image brute et fonctionne
-  // avec =IMAGE() sur les fichiers Drive publics.
-  return `https://lh3.googleusercontent.com/d/${id}=w1000`;
+  const { data, error: signErr } = await supabase.storage
+    .from(PHOTO_BUCKET)
+    .createSignedUrl(file.name, 60 * 60 * 24 * 365 * 10); // 10 ans
+  if (signErr || !data?.signedUrl) throw new Error(`Signed URL: ${signErr?.message ?? 'unknown'}`);
+  return data.signedUrl;
 }
 
 Deno.serve(async (req) => {
@@ -82,7 +43,8 @@ Deno.serve(async (req) => {
   try {
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const GOOGLE_SHEETS_API_KEY = Deno.env.get('GOOGLE_SHEETS_API_KEY');
-    const GOOGLE_DRIVE_API_KEY = Deno.env.get('GOOGLE_DRIVE_API_KEY');
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     if (!LOVABLE_API_KEY || !GOOGLE_SHEETS_API_KEY) {
       return new Response(JSON.stringify({ ok: false, error: 'Google Sheets connector not configured' }), {
         status: 500,
@@ -130,9 +92,9 @@ Deno.serve(async (req) => {
     // CAS E + CAS D : upload de la photo sur Google Drive avant d'écrire la ligne
     let driveImageUrl = '';
     if ((isCasE || isCasD) && imageDataUrl) {
-      if (!GOOGLE_DRIVE_API_KEY) {
+      if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
         return new Response(
-          JSON.stringify({ ok: false, error: 'Google Drive connector not configured' }),
+          JSON.stringify({ ok: false, error: 'Supabase storage not configured' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
@@ -146,10 +108,12 @@ Deno.serve(async (req) => {
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       const prefix = isCasE ? 'case' : 'casd';
       const name = `${prefix}-${stamp}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
-      driveImageUrl = await uploadToDrive(
-        { lovable: LOVABLE_API_KEY, drive: GOOGLE_DRIVE_API_KEY },
-        { name, mime: decoded.mime, bytes: decoded.bytes },
-      );
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      driveImageUrl = await uploadToStorage(supabase, {
+        name,
+        mime: decoded.mime,
+        bytes: decoded.bytes,
+      });
     }
 
     // Vérification anti-doublon : lit Photo/Réf/Code barre pour couvrir les anciennes lignes décalées et les nouvelles lignes alignées
