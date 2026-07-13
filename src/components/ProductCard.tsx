@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { DolibarrProduct, getPriceHT, fetchProductImageBlob, getSupplierDiscountForProduct, getProductPromos, PromoPrice, updateProductStock, updateProductExtrafields, getWarehouses } from "@/lib/dolibarr";
+import { updateStockInSheet } from "@/lib/exportCasB";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScanLine, Package, Tag, Truck, MapPin, Loader2, RotateCcw, Edit2, Plus, Minus, Save, X, Warehouse, Printer, AlertTriangle } from "lucide-react";
