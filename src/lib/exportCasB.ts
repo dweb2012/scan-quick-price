@@ -62,6 +62,19 @@ export async function sendCasB(product: DolibarrProduct): Promise<void> {
 export { getCurrentUserLabel };
 
 /**
+ * Met à jour la colonne Stock de la (ou des) ligne(s) existante(s) dans les
+ * onglets A/B/D qui correspondent à la référence produit. Sans effet si aucune
+ * ligne ne correspond (produit jamais scanné dans le Sheet).
+ */
+export async function updateStockInSheet(ref: string, newStock: number): Promise<void> {
+  if (!ref) return;
+  const { error } = await supabase.functions.invoke("export-cas-b", {
+    body: { action: "updateStock", ref, stock: newStock },
+  });
+  if (error) throw new Error(error.message);
+}
+
+/**
  * CAS C : produit introuvable dans Dolibarr mais scanné.
  * On envoie le code (ref ou barcode) dans l'onglet C.
  */
