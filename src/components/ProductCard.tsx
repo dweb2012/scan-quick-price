@@ -396,6 +396,20 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const [aisleEditorInitialAisle, setAisleEditorInitialAisle] = useState<string>("");
   const [storing, setStoring] = useState(false);
   const [emplacementOverride, setEmplacementOverride] = useState<string | null>(null);
+  const [sendingCasB, setSendingCasB] = useState(false);
+  const productIsCasB = isCasB(product);
+
+  const handleSendCasB = async () => {
+    setSendingCasB(true);
+    try {
+      await sendCasB(product);
+      toast.success("Ajouté à l'onglet B");
+    } catch (e: any) {
+      toast.error(`Échec: ${e?.message || "erreur"}`);
+    } finally {
+      setSendingCasB(false);
+    }
+  };
 
   const handlePrint = async () => {
     setPrinting(true);
