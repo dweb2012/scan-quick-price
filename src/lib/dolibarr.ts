@@ -31,6 +31,7 @@ export interface DolibarrProduct {
   default_min_quantity_discount?: string;
   array_options?: Record<string, string>;
   imageUrl?: string;
+  tosell?: number | string;
   /** Resolved supplier name (filled after fetch) */
   supplierName?: string;
 }
@@ -316,6 +317,7 @@ export async function searchProduct(value: string): Promise<DolibarrProduct | nu
   if (Array.isArray(byBarcode) && byBarcode.length > 0) {
     const product = normalizeProduct(byBarcode[0]);
     await enrichProduct(product);
+    await ensureToSell(product);
     return product;
   }
 
@@ -326,6 +328,7 @@ export async function searchProduct(value: string): Promise<DolibarrProduct | nu
   if (Array.isArray(byRef) && byRef.length > 0) {
     const product = normalizeProduct(byRef[0]);
     await enrichProduct(product);
+    await ensureToSell(product);
     return product;
   }
 
@@ -338,6 +341,18 @@ async function enrichProduct(product: DolibarrProduct): Promise<void> {
   const fournisseurId = opts.options_fournisseur || "";
   if (fournisseurId) {
     product.supplierName = await resolveSupplierName(fournisseurId);
+  }
+}
+
+/** Si le produit est marqué hors vente, le repasser en vente (tosell=1). */
+async function ensureToSell(product: DolibarrProduct): Promise<void> {
+  const current = Number(product.tosell);
+  if (current === 1) return;
+  try {
+    await dolibarrProxy(`/api/index.php/products/${product.id}`, "PUT", { tosell: 1 });
+    product.tosell = 1;
+  } catch (e) {
+    console.warn("Impossible de repasser le produit en vente (tosell=1):", e);
   }
 }
 
