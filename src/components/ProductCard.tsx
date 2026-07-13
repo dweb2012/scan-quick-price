@@ -460,6 +460,9 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
       };
       setEmplacementOverride(value);
       toast.success(`Rangé dans ${activeAisle}`);
+      if (productIsCasB && getAutoSendCasB()) {
+        sendCasB(product).catch((e) => console.warn("auto CAS B failed", e));
+      }
     } catch (e: any) {
       toast.error(e?.message || "Erreur mise à jour emplacement");
     } finally {
