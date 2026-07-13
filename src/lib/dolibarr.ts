@@ -310,7 +310,7 @@ export async function searchProduct(value: string): Promise<DolibarrProduct | nu
   if (!safeValue) return null;
 
   const byBarcode = await dolibarrProxy(
-    `/api/index.php/products?sqlfilters=${encodeURIComponent(`(barcode:=:'${safeValue}') AND (t.tosell:=:1)`)}&limit=1`,
+    `/api/index.php/products?sqlfilters=${encodeURIComponent(`(barcode:=:'${safeValue}')`)}&limit=1`,
     "GET"
   );
   if (Array.isArray(byBarcode) && byBarcode.length > 0) {
@@ -320,7 +320,7 @@ export async function searchProduct(value: string): Promise<DolibarrProduct | nu
   }
 
   const byRef = await dolibarrProxy(
-    `/api/index.php/products?sqlfilters=${encodeURIComponent(`(ref:=:'${safeValue}') AND (t.tosell:=:1)`)}&limit=1`,
+    `/api/index.php/products?sqlfilters=${encodeURIComponent(`(ref:=:'${safeValue}')`)}&limit=1`,
     "GET"
   );
   if (Array.isArray(byRef) && byRef.length > 0) {
@@ -417,7 +417,7 @@ export async function autocompleteProducts(query: string): Promise<DolibarrProdu
   if (trimmedQuery.length < 2) return [];
 
   const buildSqlFilterUrl = (field: "ref" | "label") => {
-    const sqlFilter = `(${field}:like:'%${trimmedQuery}%') AND (t.tosell:=:1)`;
+    const sqlFilter = `(${field}:like:'%${trimmedQuery}%')`;
     return `/api/index.php/products?sqlfilters=${encodeURIComponent(sqlFilter)}&limit=8`;
   };
 
