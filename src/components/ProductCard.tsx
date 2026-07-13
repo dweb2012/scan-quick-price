@@ -228,6 +228,9 @@ const StockEditor = ({ product }: { product: DolibarrProduct }) => {
       product.stock_reel = newStock;
       await updateStockInSheet(product.ref, newStock);
       toast.success(`Stock mis à jour (${direction === "in" ? "+" : "-"}${q})`);
+      if (isCasB(product) && getAutoSendCasB()) {
+        sendCasB(product).catch((e) => console.warn("auto CAS B failed", e));
+      }
       setOpen(false);
       setQty("1");
     } catch (e: any) {
@@ -344,7 +347,15 @@ const LocationEditor = ({
     try {
       const value = formatEmplacement(aisle, "");
       await updateProductExtrafields(product.id, { options_emplacement: value });
+      // Mutation locale pour refléter la nouvelle valeur avant l'envoi Sheet
+      product.array_options = {
+        ...(product.array_options || {}),
+        options_emplacement: value,
+      };
       toast.success("Emplacement mis à jour");
+      if (isCasB(product) && getAutoSendCasB()) {
+        sendCasB(product).catch((e) => console.warn("auto CAS B failed", e));
+      }
       handleClose();
     } catch (e: any) {
       toast.error(e.message || "Erreur mise à jour emplacement");
