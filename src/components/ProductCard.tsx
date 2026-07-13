@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { DolibarrProduct, getPriceHT, fetchProductImageBlob, getSupplierDiscountForProduct, getProductPromos, PromoPrice, updateProductStock, updateProductExtrafields, getWarehouses } from "@/lib/dolibarr";
-import { updateStockInSheet } from "@/lib/exportCasB";
+import { updateStockInSheet, isCasB, sendCasB } from "@/lib/exportCasB";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScanLine, Package, Tag, Truck, MapPin, Loader2, RotateCcw, Edit2, Plus, Minus, Save, X, Warehouse, Printer, AlertTriangle } from "lucide-react";
+import { ScanLine, Package, Tag, Truck, MapPin, Loader2, RotateCcw, Edit2, Plus, Minus, Save, X, Warehouse, Printer, AlertTriangle, Send } from "lucide-react";
 import { toast } from "sonner";
 import { printProductLabel } from "@/lib/labelPdf";
 import { useActiveAisle } from "@/hooks/use-active-aisle";
@@ -396,6 +396,20 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const [aisleEditorInitialAisle, setAisleEditorInitialAisle] = useState<string>("");
   const [storing, setStoring] = useState(false);
   const [emplacementOverride, setEmplacementOverride] = useState<string | null>(null);
+  const [sendingCasB, setSendingCasB] = useState(false);
+  const productIsCasB = isCasB(product);
+
+  const handleSendCasB = async () => {
+    setSendingCasB(true);
+    try {
+      await sendCasB(product);
+      toast.success("Ajouté à l'onglet B");
+    } catch (e: any) {
+      toast.error(`Échec: ${e?.message || "erreur"}`);
+    } finally {
+      setSendingCasB(false);
+    }
+  };
 
   const handlePrint = async () => {
     setPrinting(true);
@@ -608,6 +622,19 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
         {printing ? <Loader2 size={20} className="animate-spin" /> : <Printer size={20} />}
         Imprimer étiquette (54 × 70 mm)
       </Button>
+
+      {productIsCasB && (
+        <Button
+          onClick={handleSendCasB}
+          disabled={sendingCasB}
+          variant="outline"
+          size="lg"
+          className="touch-target text-base font-semibold gap-2 w-full max-w-sm border-accent text-accent hover:bg-accent/10"
+        >
+          {sendingCasB ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+          Envoyer à l'onglet B
+        </Button>
+      )}
 
       <Button onClick={onScanNext} size="lg" className="touch-target text-base font-semibold gap-2 w-full max-w-sm mt-2">
         <ScanLine size={22} />
