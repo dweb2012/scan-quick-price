@@ -301,7 +301,7 @@ const SettingsPanel = () => {
         </Button>
       </div>
 
-      {/* Label format info */}
+      {/* Export options */}
       <div className="border-t border-border pt-5 space-y-2">
         <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
           Export Google Sheets
