@@ -9,6 +9,7 @@ import { QrCode } from "lucide-react";
 import { generateAisleLabelsPdf, AisleLabelOrientation, AisleLabelPerPage } from "@/lib/aisleLabelsPdf";
 import { AISLE_ZONES, expandAisles, getAisleGroups } from "@/lib/aisleCatalog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { getAutoSendCasB, setAutoSendCasB } from "@/lib/prefs";
 
 const SettingsPanel = () => {
   const [baseUrl, setBaseUrl] = useState("");
@@ -25,6 +26,9 @@ const SettingsPanel = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+
+  // Export options
+  const [autoSendCasB, setAutoSendCasBState] = useState<boolean>(() => getAutoSendCasB());
 
   // Supplier discounts
   const [discounts, setDiscounts] = useState<SupplierDiscount[]>([]);
