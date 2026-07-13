@@ -54,7 +54,88 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const { ref, label, barcode, stock, emplacement, fournisseur, description, quantite, note, user, imageDataUrl } = body ?? {};
+    const action = body?.action as string | undefined;
     const sheetName = ALLOWED_SHEETS.includes(body?.sheet) ? body.sheet : 'B';
+
+    // ────────────────────────────────────────────────────────────────────
+    // Action « updateStock » : cherche la ligne correspondante dans les onglets
+    // A / B / D et met à jour la colonne Stock. Sans append.
+    // Mapping colonnes :
+    //   A, B, C → Réf en col A, Stock en col E
+    //   D       → Réf en col B, Stock en col F
+    // ────────────────────────────────────────────────────────────────────
+    if (action === 'updateStock') {
+      const refStr = String(ref ?? '').trim();
+      if (!refStr) {
+        return new Response(JSON.stringify({ ok: false, error: 'ref required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const stockValue = stock ?? '';
+      const targets: Array<{ sheet: string; refCol: 0 | 1; stockCol: string; readRange: string }> = [
+        { sheet: 'A', refCol: 0, stockCol: 'E', readRange: 'A!A:A' },
+        { sheet: 'B', refCol: 0, stockCol: 'E', readRange: 'B!A:A' },
+        { sheet: 'D', refCol: 1, stockCol: 'F', readRange: 'D!B:B' },
+      ];
+      const updates: Array<{ range: string; values: any[][] }> = [];
+      for (const t of targets) {
+        try {
+          const readUrl = `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${t.readRange}`;
+          const readRes = await fetch(readUrl, {
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              'X-Connection-Api-Key': GOOGLE_SHEETS_API_KEY,
+            },
+          });
+          if (!readRes.ok) continue;
+          const data = await readRes.json();
+          const rows: string[][] = data.values ?? [];
+          rows.forEach((cols, idx) => {
+            const cell = String(cols?.[0] ?? '').trim();
+            if (cell && cell === refStr) {
+              // idx est 0-based sur la plage ; rowNumber Sheets = idx + 1
+              const rowNumber = idx + 1;
+              updates.push({
+                range: `${t.sheet}!${t.stockCol}${rowNumber}`,
+                values: [[stockValue]],
+              });
+            }
+          });
+        } catch (e) {
+          console.warn('updateStock read failed', t.sheet, e);
+        }
+      }
+
+      if (updates.length === 0) {
+        return new Response(JSON.stringify({ ok: true, updated: 0 }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const batchUrl = `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values:batchUpdate`;
+      const batchRes = await fetch(batchUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          'X-Connection-Api-Key': GOOGLE_SHEETS_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data: updates }),
+      });
+      const batchText = await batchRes.text();
+      if (!batchRes.ok) {
+        console.error('updateStock batchUpdate failed', batchRes.status, batchText);
+        return new Response(
+          JSON.stringify({ ok: false, status: batchRes.status, error: batchText.slice(0, 500) }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      return new Response(JSON.stringify({ ok: true, updated: updates.length }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const isCasE = sheetName === 'E';
     const isCasD = sheetName === 'D';
     const hasPhotoCol = isCasE || isCasD;

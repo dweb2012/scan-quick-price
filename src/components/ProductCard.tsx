@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { DolibarrProduct, getPriceHT, fetchProductImageBlob, getSupplierDiscountForProduct, getProductPromos, PromoPrice, updateProductStock, updateProductExtrafields, getWarehouses } from "@/lib/dolibarr";
+import { updateStockInSheet } from "@/lib/exportCasB";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScanLine, Package, Tag, Truck, MapPin, Loader2, RotateCcw, Edit2, Plus, Minus, Save, X, Warehouse, Printer, AlertTriangle } from "lucide-react";
@@ -222,6 +223,12 @@ const StockEditor = ({ product }: { product: DolibarrProduct }) => {
       const finalQty = direction === "in" ? q : -q;
       await updateProductStock(product.id, finalQty, selectedWarehouse);
       toast.success(`Stock mis à jour (${direction === "in" ? "+" : "-"}${q})`);
+      // Répercute le nouveau stock dans le Google Sheet (ligne déjà présente)
+      const newStock = (product.stock_reel ?? 0) + finalQty;
+      product.stock_reel = newStock;
+      updateStockInSheet(product.ref, newStock).catch((e) =>
+        console.warn("Sheet stock update failed", e),
+      );
       setOpen(false);
       setQty("1");
     } catch (e: any) {
