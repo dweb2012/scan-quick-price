@@ -623,6 +623,19 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
         Imprimer étiquette (54 × 70 mm)
       </Button>
 
+      {productIsCasB && (
+        <Button
+          onClick={handleSendCasB}
+          disabled={sendingCasB}
+          variant="outline"
+          size="lg"
+          className="touch-target text-base font-semibold gap-2 w-full max-w-sm border-accent text-accent hover:bg-accent/10"
+        >
+          {sendingCasB ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+          Envoyer à l'onglet B
+        </Button>
+      )}
+
       <Button onClick={onScanNext} size="lg" className="touch-target text-base font-semibold gap-2 w-full max-w-sm mt-2">
         <ScanLine size={22} />
         Scanner suivant
