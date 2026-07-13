@@ -304,6 +304,32 @@ const SettingsPanel = () => {
       {/* Label format info */}
       <div className="border-t border-border pt-5 space-y-2">
         <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+          Export Google Sheets
+        </h3>
+        <label className="flex items-start gap-3 cursor-pointer touch-target">
+          <Checkbox
+            checked={autoSendCasB}
+            onCheckedChange={(v) => {
+              const enabled = v === true;
+              setAutoSendCasBState(enabled);
+              setAutoSendCasB(enabled);
+              toast.success(enabled ? "Envoi auto activé" : "Envoi auto désactivé");
+            }}
+            className="mt-0.5"
+          />
+          <div className="flex-1">
+            <div className="text-sm font-semibold">Envoyer automatiquement vers l'onglet B</div>
+            <p className="text-xs text-muted-foreground">
+              Après chaque modification (stock ou emplacement) d'un produit hors BMY,
+              une ligne est ajoutée automatiquement à l'onglet B du Google Sheet.
+            </p>
+          </div>
+        </label>
+      </div>
+
+      {/* Label format info */}
+      <div className="border-t border-border pt-5 space-y-2">
+        <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
           Format d'étiquette
         </h3>
         <p className="text-xs text-muted-foreground">
