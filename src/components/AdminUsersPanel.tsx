@@ -24,7 +24,7 @@ const AdminUsersPanel = () => {
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState<"user" | "admin">("user");
 
-const translateError = (msg: string) => {
+  const translateError = (msg: string) => {
   const m = msg.toLowerCase();
   if (m.includes("weak") || m.includes("pwned") || m.includes("easy to guess"))
     return "Mot de passe trop faible (trop courant). Utilisez au moins 8 caractères avec majuscules, chiffres et symboles.";
