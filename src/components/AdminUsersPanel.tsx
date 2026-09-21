@@ -38,7 +38,12 @@ const AdminUsersPanel = () => {
   return msg;
 };
 
-const AdminUsersPanelInner = () => null;
+  const callManageUsers = async (body: Record<string, unknown>) => {
+    const { data, error } = await supabase.functions.invoke("manage-users", { body });
+    if (error) throw new Error(translateError(error.message));
+    if (data?.error) throw new Error(translateError(data.error));
+    return data;
+  };
 
   const loadUsers = async () => {
     try {
