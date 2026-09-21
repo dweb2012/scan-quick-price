@@ -224,12 +224,18 @@ const StockEditor = ({ product }: { product: DolibarrProduct }) => {
       const finalQty = direction === "in" ? q : -q;
       // Mise à jour Dolibarr désactivée temporairement — seul le Google Sheet est mis à jour.
       // await updateProductStock(product.id, finalQty, selectedWarehouse);
-      const newStock = (product.stock_reel ?? 0) + finalQty;
+      const currentStock = Number(product.stock_reel ?? 0);
+      const newStock = (Number.isFinite(currentStock) ? currentStock : 0) + finalQty;
       product.stock_reel = newStock;
-      await updateStockInSheet(product.ref, newStock);
-      toast.success(`Stock mis à jour (${direction === "in" ? "+" : "-"}${q})`);
-      if (isCasB(product) && getAutoSendCasB()) {
-        sendCasB(product).catch((e) => console.warn("auto CAS B failed", e));
+      const updatedRows = await updateStockInSheet(product.ref, newStock);
+      const autoSendCasB = isCasB(product) && getAutoSendCasB();
+      if (updatedRows === 0 && autoSendCasB) {
+        await sendCasB(product);
+      }
+      if (updatedRows > 0 || autoSendCasB) {
+        toast.success(`Stock mis à jour dans le Google Sheet (${direction === "in" ? "+" : "-"}${q})`);
+      } else {
+        toast.warning("Stock calculé, mais ce produit n’existe pas encore dans le Google Sheet");
       }
       setOpen(false);
       setQty("1");

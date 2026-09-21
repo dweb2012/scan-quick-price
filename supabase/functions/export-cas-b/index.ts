@@ -86,6 +86,7 @@ Deno.serve(async (req) => {
             { sheet: 'D', refCol: 1, stockCol: 'F', readRange: 'D!B:B' },
           ];
       const updates: Array<{ range: string; values: any[][] }> = [];
+      const readFailures: string[] = [];
       for (const t of targets) {
         try {
           const readUrl = `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${t.readRange}`;
@@ -95,12 +96,17 @@ Deno.serve(async (req) => {
               'X-Connection-Api-Key': GOOGLE_SHEETS_API_KEY,
             },
           });
-          if (!readRes.ok) continue;
+          if (!readRes.ok) {
+            const errorText = await readRes.text();
+            console.error('Sheet lookup failed', t.sheet, readRes.status, errorText);
+            readFailures.push(`${t.sheet}: ${readRes.status}`);
+            continue;
+          }
           const data = await readRes.json();
           const rows: string[][] = data.values ?? [];
           rows.forEach((cols, idx) => {
             const cell = String(cols?.[0] ?? '').trim();
-            if (cell && cell === refStr) {
+            if (cell && cell.toLocaleUpperCase() === refStr.toLocaleUpperCase()) {
               // idx est 0-based sur la plage ; rowNumber Sheets = idx + 1
               const rowNumber = idx + 1;
               updates.push({
@@ -111,7 +117,15 @@ Deno.serve(async (req) => {
           });
         } catch (e) {
           console.warn('updateStock read failed', t.sheet, e);
+          readFailures.push(t.sheet);
         }
+      }
+
+      if (readFailures.length > 0) {
+        return new Response(
+          JSON.stringify({ ok: false, error: `Lecture Google Sheet impossible (${readFailures.join(', ')})` }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
       }
 
       if (updates.length === 0) {

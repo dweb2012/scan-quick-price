@@ -66,12 +66,14 @@ export { getCurrentUserLabel };
  * onglets A/B/D qui correspondent à la référence produit. Sans effet si aucune
  * ligne ne correspond (produit jamais scanné dans le Sheet).
  */
-export async function updateStockInSheet(ref: string, newStock: number): Promise<void> {
-  if (!ref) return;
-  const { error } = await supabase.functions.invoke("export-cas-b", {
+export async function updateStockInSheet(ref: string, newStock: number): Promise<number> {
+  if (!ref) return 0;
+  const { data, error } = await supabase.functions.invoke("export-cas-b", {
     body: { action: "updateStock", ref, stock: newStock },
   });
   if (error) throw new Error(error.message);
+  if (data?.ok === false) throw new Error(data.error || "Échec de la mise à jour du Google Sheet");
+  return Number(data?.updated ?? 0);
 }
 
 /**
