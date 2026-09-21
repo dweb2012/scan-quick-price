@@ -40,7 +40,19 @@ const AdminUsersPanel = () => {
 
   const callManageUsers = async (body: Record<string, unknown>) => {
     const { data, error } = await supabase.functions.invoke("manage-users", { body });
-    if (error) throw new Error(translateError(error.message));
+    if (error) {
+      let detail = error.message;
+      try {
+        const ctx = (error as any).context;
+        if (ctx && typeof ctx.json === "function") {
+          const parsed = await ctx.json();
+          if (parsed?.error) detail = parsed.error;
+        }
+      } catch {
+        // ignore parse failure, keep generic message
+      }
+      throw new Error(translateError(detail));
+    }
     if (data?.error) throw new Error(translateError(data.error));
     return data;
   };
