@@ -64,7 +64,8 @@ Deno.serve(async (req) => {
     //   A, B, C → Réf en col A, Stock en col E
     //   D       → Réf en col B, Stock en col F
     // ────────────────────────────────────────────────────────────────────
-    if (action === 'updateStock') {
+    if (action === 'updateStock' || action === 'updateEmplacement') {
+      const isEmpl = action === 'updateEmplacement';
       const refStr = String(ref ?? '').trim();
       if (!refStr) {
         return new Response(JSON.stringify({ ok: false, error: 'ref required' }), {
@@ -72,12 +73,18 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      const stockValue = stock ?? '';
-      const targets: Array<{ sheet: string; refCol: 0 | 1; stockCol: string; readRange: string }> = [
-        { sheet: 'A', refCol: 0, stockCol: 'E', readRange: 'A!A:A' },
-        { sheet: 'B', refCol: 0, stockCol: 'E', readRange: 'B!A:A' },
-        { sheet: 'D', refCol: 1, stockCol: 'F', readRange: 'D!B:B' },
-      ];
+      const stockValue = isEmpl ? (emplacement ?? '') : (stock ?? '');
+      const targets: Array<{ sheet: string; refCol: 0 | 1; stockCol: string; readRange: string }> = isEmpl
+        ? [
+            { sheet: 'A', refCol: 0, stockCol: 'F', readRange: 'A!A:A' },
+            { sheet: 'B', refCol: 0, stockCol: 'F', readRange: 'B!A:A' },
+            { sheet: 'D', refCol: 1, stockCol: 'G', readRange: 'D!B:B' },
+          ]
+        : [
+            { sheet: 'A', refCol: 0, stockCol: 'E', readRange: 'A!A:A' },
+            { sheet: 'B', refCol: 0, stockCol: 'E', readRange: 'B!A:A' },
+            { sheet: 'D', refCol: 1, stockCol: 'F', readRange: 'D!B:B' },
+          ];
       const updates: Array<{ range: string; values: any[][] }> = [];
       for (const t of targets) {
         try {
