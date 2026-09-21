@@ -75,6 +75,18 @@ export async function updateStockInSheet(ref: string, newStock: number): Promise
 }
 
 /**
+ * Met à jour la colonne Emplacement des lignes existantes (onglets A/B/D)
+ * correspondant à la référence produit.
+ */
+export async function updateEmplacementInSheet(ref: string, emplacement: string): Promise<void> {
+  if (!ref) return;
+  const { error } = await supabase.functions.invoke("export-cas-b", {
+    body: { action: "updateEmplacement", ref, emplacement },
+  });
+  if (error) throw new Error(error.message);
+}
+
+/**
  * CAS C : produit introuvable dans Dolibarr mais scanné.
  * On envoie le code (ref ou barcode) dans l'onglet C.
  */
