@@ -24,10 +24,36 @@ const AdminUsersPanel = () => {
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState<"user" | "admin">("user");
 
+  const translateError = (msg: string) => {
+  const m = msg.toLowerCase();
+  if (m.includes("weak") || m.includes("pwned") || m.includes("easy to guess"))
+    return "Mot de passe trop faible (trop courant). Utilisez au moins 8 caractères avec majuscules, chiffres et symboles.";
+  if (m.includes("password should be at least") || m.includes("at least 6"))
+    return "Mot de passe trop court : 6 caractères minimum.";
+  if (m.includes("already been registered") || m.includes("already exists"))
+    return "Cette adresse email est déjà utilisée.";
+  if (m.includes("invalid email") || m.includes("unable to validate email"))
+    return "Adresse email invalide.";
+  if (m.includes("administrateurs")) return msg;
+  return msg;
+};
+
   const callManageUsers = async (body: Record<string, unknown>) => {
     const { data, error } = await supabase.functions.invoke("manage-users", { body });
-    if (error) throw new Error(error.message);
-    if (data?.error) throw new Error(data.error);
+    if (error) {
+      let detail = error.message;
+      try {
+        const ctx = (error as any).context;
+        if (ctx && typeof ctx.json === "function") {
+          const parsed = await ctx.json();
+          if (parsed?.error) detail = parsed.error;
+        }
+      } catch {
+        // ignore parse failure, keep generic message
+      }
+      throw new Error(translateError(detail));
+    }
+    if (data?.error) throw new Error(translateError(data.error));
     return data;
   };
 
