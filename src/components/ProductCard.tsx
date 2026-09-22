@@ -229,7 +229,7 @@ const StockEditor = ({
     if (!q || q <= 0 || !selectedWarehouse) return;
     setSaving(true);
     try {
-      const finalQty = direction === "in" ? q : -q;
+      const finalQty = q;
       // Mise à jour Dolibarr désactivée temporairement — seul le Google Sheet est mis à jour.
       // await updateProductStock(product.id, finalQty, selectedWarehouse);
       const newStock = currentStock + finalQty;
@@ -240,7 +240,8 @@ const StockEditor = ({
         await sendCasB(product);
       }
       if (updatedRows > 0 || autoSendCasB) {
-        toast.success(`Stock mis à jour dans le Google Sheet (${direction === "in" ? "+" : "-"}${q})`);
+        toast.success(`Stock mis à jour dans le Google Sheet (+${q})`);
+
       } else {
         toast.warning("Stock calculé, mais ce produit n’existe pas encore dans le Google Sheet");
       }
