@@ -242,7 +242,7 @@ Deno.serve(async (req) => {
       for (const [key, i] of Object.entries(fieldIndex)) {
         const v = body?.[key];
         if (v === undefined) continue;
-        const value = key === 'ref' || key === 'barcode' ? asTextCode(v) : (v ?? '');
+        const value = key === 'ref' || key === 'barcode' ? String(v ?? '') : (v ?? '');
         updates.push({ range: `${s}!${colLetter(o + i)}${rowNumber}`, values: [[value]] });
       }
       if (updates.length === 0) {
@@ -252,7 +252,7 @@ Deno.serve(async (req) => {
       }
       const res = await sheetsApi('/values:batchUpdate', {
         method: 'POST',
-        body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data: updates }),
+        body: JSON.stringify({ valueInputOption: 'RAW', data: updates }),
       });
       const txt = await res.text();
       if (!res.ok) {
