@@ -203,6 +203,13 @@ const Index = () => {
           >
             <ClipboardList size={16} /> Inconnu (CAS E)
           </Button>
+          <Button
+            variant="ghost"
+            onClick={() => setHelpOpen(true)}
+            className="col-span-2 touch-target gap-2 text-muted-foreground"
+          >
+            <HelpCircle size={16} /> Rappel des cas A → E
+          </Button>
         </div>
       </div>
     );
