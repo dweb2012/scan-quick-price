@@ -695,6 +695,22 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
         </Button>
       )}
 
+      <Button
+        onClick={() => setSheetRowsOpen(true)}
+        variant="outline"
+        size="lg"
+        className="touch-target text-base font-semibold gap-2 w-full max-w-sm"
+      >
+        <Pencil size={20} />
+        Modifier la fiche Google Sheet
+      </Button>
+
+      <SheetRowsDialog
+        open={sheetRowsOpen}
+        onClose={() => setSheetRowsOpen(false)}
+        initialQuery={product.ref || product.barcode || ""}
+      />
+
       <Button onClick={onScanNext} size="lg" className="touch-target text-base font-semibold gap-2 w-full max-w-sm mt-2">
         <ScanLine size={22} />
         Scanner suivant
