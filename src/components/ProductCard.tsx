@@ -214,7 +214,6 @@ const StockEditor = ({
   const [warehouses, setWarehouses] = useState<{ id: number; label: string }[]>([]);
   const [selectedWarehouse, setSelectedWarehouse] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
-  const [direction, setDirection] = useState<"in" | "out">("in");
 
   useEffect(() => {
     if (open && warehouses.length === 0) {
