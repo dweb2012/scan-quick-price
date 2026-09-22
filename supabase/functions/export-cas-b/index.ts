@@ -35,6 +35,16 @@ async function uploadToStorage(
   return data.signedUrl;
 }
 
+// Force l'écriture d'un code (réf / code-barres) en texte pour préserver
+// les zéros de tête : "09400842" ne doit pas devenir 9400842.
+function asTextCode(v: unknown): string {
+  const s = String(v ?? '').trim();
+  if (!s) return '';
+  return /^0\d*$/.test(s) ? `'${s}` : s;
+}
+
+
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
