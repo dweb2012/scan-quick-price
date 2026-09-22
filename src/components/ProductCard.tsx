@@ -264,23 +264,34 @@ const StockEditor = ({ product }: { product: DolibarrProduct }) => {
       </div>
 
       <div className="flex gap-2">
-        <Button
-          variant={direction === "in" ? "default" : "outline"}
-          size="sm"
+        <button
+          type="button"
+          onPointerDown={() => setDirection("in")}
           onClick={() => setDirection("in")}
-          className="flex-1 gap-1 touch-target"
+          aria-pressed={direction === "in"}
+          className={`flex-1 touch-target rounded-lg border text-sm font-medium inline-flex items-center justify-center gap-1 transition-colors ${
+            direction === "in"
+              ? "bg-primary text-primary-foreground border-primary"
+              : "bg-background text-foreground border-border"
+          }`}
         >
           <Plus size={14} /> Entrée
-        </Button>
-        <Button
-          variant={direction === "out" ? "destructive" : "outline"}
-          size="sm"
+        </button>
+        <button
+          type="button"
+          onPointerDown={() => setDirection("out")}
           onClick={() => setDirection("out")}
-          className="flex-1 gap-1 touch-target"
+          aria-pressed={direction === "out"}
+          className={`flex-1 touch-target rounded-lg border text-sm font-medium inline-flex items-center justify-center gap-1 transition-colors ${
+            direction === "out"
+              ? "bg-destructive text-destructive-foreground border-destructive"
+              : "bg-background text-foreground border-border"
+          }`}
         >
           <Minus size={14} /> Sortie
-        </Button>
+        </button>
       </div>
+
 
       <Input
         type="number"
