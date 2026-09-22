@@ -374,8 +374,8 @@ Deno.serve(async (req) => {
       : isCasD
       ? [
           driveImageUrl ? `=IMAGE("${driveImageUrl}"; 4; 240; 240)` : '',
-          ref ?? '',
-          barcode ?? '',
+          asTextCode(ref),
+          asTextCode(barcode),
           label ?? '',
           fournisseur ?? '',
           stock ?? '',
@@ -385,8 +385,8 @@ Deno.serve(async (req) => {
         ]
       : [
           // B / C : sans colonne Photo
-          ref ?? '',
-          barcode ?? '',
+          asTextCode(ref),
+          asTextCode(barcode),
           label ?? '',
           fournisseur ?? '',
           stock ?? '',
@@ -394,6 +394,7 @@ Deno.serve(async (req) => {
           [note, user ? `par ${user}` : '', `Export scan ${now}`].filter(Boolean).join(' • '),
           'A traiter',
         ];
+
 
     const url = `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${SHEET_RANGE}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
     const res = await fetch(url, {
