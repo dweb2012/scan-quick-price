@@ -30,6 +30,7 @@ const SettingsPanel = () => {
 
   // Export options
   const [autoSendCasB, setAutoSendCasBState] = useState<boolean>(() => getAutoSendCasB());
+  const [sheetRowsOpen, setSheetRowsOpen] = useState(false);
 
   // Supplier discounts
   const [discounts, setDiscounts] = useState<SupplierDiscount[]>([]);
