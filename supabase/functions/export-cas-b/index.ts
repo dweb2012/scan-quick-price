@@ -157,6 +157,104 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ────────────────────────────────────────────────────────────────────
+    // Actions « listRows » / « updateRow » : consultation et modification des
+    // lignes déjà présentes dans les onglets A→E.
+    // Mapping : A/B/C sans colonne Photo (offset 0), D/E avec Photo en A (offset 1)
+    //   Réf | Code barre | Libellé | Marque | Stock | Emplacement | Note | Etat
+    // ────────────────────────────────────────────────────────────────────
+    const colOffset = (s: string) => (s === 'D' || s === 'E' ? 1 : 0);
+    const colLetter = (i: number) => String.fromCharCode(65 + i);
+    const sheetsApi = async (path: string, init?: RequestInit) =>
+      fetch(`${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}${path}`, {
+        ...init,
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          'X-Connection-Api-Key': GOOGLE_SHEETS_API_KEY,
+          ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(init?.headers ?? {}),
+        },
+      });
+
+    if (action === 'listRows') {
+      const q = String(body?.query ?? '').trim().toLocaleLowerCase();
+      const out: any[] = [];
+      for (const s of ALLOWED_SHEETS) {
+        const res = await sheetsApi(`/values/${s}!A:I`);
+        if (!res.ok) {
+          console.warn('listRows read failed', s, res.status, await res.text());
+          continue;
+        }
+        const data = await res.json();
+        const rows: string[][] = data.values ?? [];
+        const o = colOffset(s);
+        rows.forEach((cols, idx) => {
+          if (idx === 0) return; // entête
+          const get = (i: number) => String(cols?.[o + i] ?? '').trim();
+          const item = {
+            sheet: s,
+            row: idx + 1,
+            ref: get(0),
+            barcode: get(1),
+            label: get(2),
+            fournisseur: get(3),
+            stock: get(4),
+            emplacement: get(5),
+            note: get(6),
+            etat: get(7),
+          };
+          if (!item.ref && !item.barcode && !item.label) return;
+          if (q) {
+            const hay = `${item.ref} ${item.barcode} ${item.label} ${item.fournisseur}`.toLocaleLowerCase();
+            if (!hay.includes(q)) return;
+          }
+          out.push(item);
+        });
+      }
+      return new Response(JSON.stringify({ ok: true, rows: out.slice(0, 500) }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (action === 'updateRow') {
+      const s = String(body?.sheet ?? '');
+      const rowNumber = Number(body?.row);
+      if (!ALLOWED_SHEETS.includes(s as any) || !Number.isInteger(rowNumber) || rowNumber < 2) {
+        return new Response(JSON.stringify({ ok: false, error: 'sheet/row invalides' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const o = colOffset(s);
+      const fieldIndex: Record<string, number> = {
+        label: 2, fournisseur: 3, stock: 4, emplacement: 5, note: 6,
+      };
+      const updates: Array<{ range: string; values: any[][] }> = [];
+      for (const [key, i] of Object.entries(fieldIndex)) {
+        const v = body?.[key];
+        if (v === undefined) continue;
+        updates.push({ range: `${s}!${colLetter(o + i)}${rowNumber}`, values: [[v ?? '']] });
+      }
+      if (updates.length === 0) {
+        return new Response(JSON.stringify({ ok: true, updated: 0 }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const res = await sheetsApi('/values:batchUpdate', {
+        method: 'POST',
+        body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data: updates }),
+      });
+      const txt = await res.text();
+      if (!res.ok) {
+        console.error('updateRow failed', res.status, txt);
+        return new Response(JSON.stringify({ ok: false, status: res.status, error: txt.slice(0, 500) }), {
+          status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true, updated: updates.length }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const isCasE = sheetName === 'E';
     const isCasD = sheetName === 'D';
     const hasPhotoCol = isCasE || isCasD;

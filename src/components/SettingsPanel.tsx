@@ -4,8 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Plus, Trash2, LogOut } from "lucide-react";
+import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Plus, Trash2, LogOut, Pencil } from "lucide-react";
 import { QrCode } from "lucide-react";
+import SheetRowsDialog from "@/components/SheetRowsDialog";
 import { generateAisleLabelsPdf, AisleLabelOrientation, AisleLabelPerPage } from "@/lib/aisleLabelsPdf";
 import { AISLE_ZONES, expandAisles, getAisleGroups } from "@/lib/aisleCatalog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -29,6 +30,7 @@ const SettingsPanel = () => {
 
   // Export options
   const [autoSendCasB, setAutoSendCasBState] = useState<boolean>(() => getAutoSendCasB());
+  const [sheetRowsOpen, setSheetRowsOpen] = useState(false);
 
   // Supplier discounts
   const [discounts, setDiscounts] = useState<SupplierDiscount[]>([]);
@@ -325,6 +327,15 @@ const SettingsPanel = () => {
             </p>
           </div>
         </label>
+        <Button
+          variant="outline"
+          onClick={() => setSheetRowsOpen(true)}
+          className="touch-target w-full gap-2"
+        >
+          <Pencil size={18} />
+          Modifier une fiche déjà envoyée
+        </Button>
+        <SheetRowsDialog open={sheetRowsOpen} onClose={() => setSheetRowsOpen(false)} />
       </div>
 
       {/* Label format info */}
