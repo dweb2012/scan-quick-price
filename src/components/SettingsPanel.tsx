@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Plus, Trash2, LogOut, Pencil } from "lucide-react";
 import { QrCode } from "lucide-react";
 import SheetRowsDialog from "@/components/SheetRowsDialog";
+import CasesHelpDialog from "@/components/CasesHelpDialog";
+import { HelpCircle } from "lucide-react";
 import { generateAisleLabelsPdf, AisleLabelOrientation, AisleLabelPerPage } from "@/lib/aisleLabelsPdf";
 import { AISLE_ZONES, expandAisles, getAisleGroups } from "@/lib/aisleCatalog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -31,6 +33,7 @@ const SettingsPanel = () => {
   // Export options
   const [autoSendCasB, setAutoSendCasBState] = useState<boolean>(() => getAutoSendCasB());
   const [sheetRowsOpen, setSheetRowsOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // Supplier discounts
   const [discounts, setDiscounts] = useState<SupplierDiscount[]>([]);
@@ -336,6 +339,15 @@ const SettingsPanel = () => {
           Modifier une fiche déjà envoyée
         </Button>
         <SheetRowsDialog open={sheetRowsOpen} onClose={() => setSheetRowsOpen(false)} />
+        <Button
+          variant="outline"
+          onClick={() => setHelpOpen(true)}
+          className="touch-target w-full gap-2"
+        >
+          <HelpCircle size={18} />
+          Rappel des cas A → E
+        </Button>
+        <CasesHelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
       </div>
 
       {/* Label format info */}

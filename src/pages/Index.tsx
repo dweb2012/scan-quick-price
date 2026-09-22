@@ -20,7 +20,8 @@ import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { listMyUnknowns } from "@/lib/unknownProducts";
 import { toast } from "sonner";
-import { AlertTriangle, RefreshCw, WifiOff, ClipboardList } from "lucide-react";
+import { AlertTriangle, RefreshCw, WifiOff, ClipboardList, HelpCircle } from "lucide-react";
+import CasesHelpDialog from "@/components/CasesHelpDialog";
 import { Button } from "@/components/ui/button";
 
 const Index = () => {
@@ -36,6 +37,7 @@ const Index = () => {
   const [casEOpen, setCasEOpen] = useState(false);
   const [casDOpen, setCasDOpen] = useState(false);
   const [casCOpen, setCasCOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
   const refreshPendingCount = useCallback(async () => {
@@ -203,6 +205,13 @@ const Index = () => {
           >
             <ClipboardList size={16} /> Inconnu (CAS E)
           </Button>
+          <Button
+            variant="ghost"
+            onClick={() => setHelpOpen(true)}
+            className="col-span-2 touch-target gap-2 text-muted-foreground"
+          >
+            <HelpCircle size={16} /> Rappel des cas A → E
+          </Button>
         </div>
       </div>
     );
@@ -231,6 +240,7 @@ const Index = () => {
       <ReportCasEDialog open={casEOpen} onClose={() => setCasEOpen(false)} />
       <ReportCasDDialog open={casDOpen} onClose={() => setCasDOpen(false)} />
       <ReportCasCDialog open={casCOpen} barcode={lastCode} onClose={() => setCasCOpen(false)} />
+      <CasesHelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 };
