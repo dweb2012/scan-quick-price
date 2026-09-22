@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, Plus, Trash2, LogOut, Pencil } from "lucide-react";
 import { QrCode } from "lucide-react";
 import SheetRowsDialog from "@/components/SheetRowsDialog";
+import CasesHelpDialog from "@/components/CasesHelpDialog";
+import { HelpCircle } from "lucide-react";
 import { generateAisleLabelsPdf, AisleLabelOrientation, AisleLabelPerPage } from "@/lib/aisleLabelsPdf";
 import { AISLE_ZONES, expandAisles, getAisleGroups } from "@/lib/aisleCatalog";
 import { Checkbox } from "@/components/ui/checkbox";
