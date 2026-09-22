@@ -240,6 +240,7 @@ const Index = () => {
       <ReportCasEDialog open={casEOpen} onClose={() => setCasEOpen(false)} />
       <ReportCasDDialog open={casDOpen} onClose={() => setCasDOpen(false)} />
       <ReportCasCDialog open={casCOpen} barcode={lastCode} onClose={() => setCasCOpen(false)} />
+      <CasesHelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 };
