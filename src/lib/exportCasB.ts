@@ -61,6 +61,42 @@ export async function sendCasB(product: DolibarrProduct): Promise<void> {
 
 export { getCurrentUserLabel };
 
+/** Une ligne existante d'un onglet du Google Sheet. */
+export interface SheetRow {
+  sheet: "A" | "B" | "C" | "D" | "E";
+  row: number;
+  ref: string;
+  barcode: string;
+  label: string;
+  fournisseur: string;
+  stock: string;
+  emplacement: string;
+  note: string;
+  etat: string;
+}
+
+/** Liste les lignes déjà saisies dans les onglets A→E (recherche facultative). */
+export async function listSheetRows(query?: string): Promise<SheetRow[]> {
+  const { data, error } = await supabase.functions.invoke("export-cas-b", {
+    body: { action: "listRows", query: query ?? "" },
+  });
+  if (error) throw new Error(error.message);
+  if (data?.ok === false) throw new Error(data.error || "Lecture du Google Sheet impossible");
+  return (data?.rows ?? []) as SheetRow[];
+}
+
+/** Modifie les champs d'une ligne existante du Google Sheet. */
+export async function updateSheetRow(
+  target: { sheet: string; row: number },
+  fields: Partial<Pick<SheetRow, "label" | "fournisseur" | "stock" | "emplacement" | "note">>,
+): Promise<void> {
+  const { data, error } = await supabase.functions.invoke("export-cas-b", {
+    body: { action: "updateRow", sheet: target.sheet, row: target.row, ...fields },
+  });
+  if (error) throw new Error(error.message);
+  if (data?.ok === false) throw new Error(data.error || "Mise à jour impossible");
+}
+
 /**
  * Met à jour la colonne Stock de la (ou des) ligne(s) existante(s) dans les
  * onglets A/B/D qui correspondent à la référence produit. Sans effet si aucune
