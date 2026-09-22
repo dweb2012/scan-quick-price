@@ -37,6 +37,7 @@ const Index = () => {
   const [casEOpen, setCasEOpen] = useState(false);
   const [casDOpen, setCasDOpen] = useState(false);
   const [casCOpen, setCasCOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
   const refreshPendingCount = useCallback(async () => {
