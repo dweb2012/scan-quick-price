@@ -336,6 +336,15 @@ const SettingsPanel = () => {
           Modifier une fiche déjà envoyée
         </Button>
         <SheetRowsDialog open={sheetRowsOpen} onClose={() => setSheetRowsOpen(false)} />
+        <Button
+          variant="outline"
+          onClick={() => setHelpOpen(true)}
+          className="touch-target w-full gap-2"
+        >
+          <HelpCircle size={18} />
+          Rappel des cas A → E
+        </Button>
+        <CasesHelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
       </div>
 
       {/* Label format info */}
