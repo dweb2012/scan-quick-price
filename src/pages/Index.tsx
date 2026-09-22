@@ -20,7 +20,8 @@ import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { listMyUnknowns } from "@/lib/unknownProducts";
 import { toast } from "sonner";
-import { AlertTriangle, RefreshCw, WifiOff, ClipboardList } from "lucide-react";
+import { AlertTriangle, RefreshCw, WifiOff, ClipboardList, HelpCircle } from "lucide-react";
+import CasesHelpDialog from "@/components/CasesHelpDialog";
 import { Button } from "@/components/ui/button";
 
 const Index = () => {
