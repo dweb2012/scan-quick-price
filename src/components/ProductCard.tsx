@@ -4,9 +4,10 @@ import { updateStockInSheet, updateEmplacementInSheet, isCasB, sendCasB } from "
 import { getAutoSendCasB } from "@/lib/prefs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScanLine, Package, Tag, Truck, MapPin, Loader2, RotateCcw, Edit2, Plus, Minus, Save, X, Warehouse, Printer, AlertTriangle, Send } from "lucide-react";
+import { ScanLine, Package, Tag, Truck, MapPin, Loader2, RotateCcw, Edit2, Plus, Minus, Save, X, Warehouse, Printer, AlertTriangle, Send, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { printProductLabel } from "@/lib/labelPdf";
+import SheetRowsDialog from "@/components/SheetRowsDialog";
 import { useActiveAisle } from "@/hooks/use-active-aisle";
 import { parseEmplacement, formatEmplacement } from "@/lib/aisle";
 import { expandAisles, getAisleEntry, isValidAisle, formatAisleLabel, getAisleGroups } from "@/lib/aisleCatalog";
@@ -440,6 +441,7 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const [printing, setPrinting] = useState(false);
   const activeAisle = useActiveAisle();
   const [aisleEditorOpen, setAisleEditorOpen] = useState(false);
+  const [sheetRowsOpen, setSheetRowsOpen] = useState(false);
   const [aisleEditorInitialAisle, setAisleEditorInitialAisle] = useState<string>("");
   const [storing, setStoring] = useState(false);
   const [emplacementOverride, setEmplacementOverride] = useState<string | null>(null);
