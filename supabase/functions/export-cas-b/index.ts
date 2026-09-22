@@ -35,6 +35,16 @@ async function uploadToStorage(
   return data.signedUrl;
 }
 
+// Force l'écriture d'un code (réf / code-barres) en texte pour préserver
+// les zéros de tête : "09400842" ne doit pas devenir 9400842.
+function asTextCode(v: unknown): string {
+  const s = String(v ?? '').trim();
+  if (!s) return '';
+  return /^0\d*$/.test(s) ? `'${s}` : s;
+}
+
+
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -374,8 +384,8 @@ Deno.serve(async (req) => {
       : isCasD
       ? [
           driveImageUrl ? `=IMAGE("${driveImageUrl}"; 4; 240; 240)` : '',
-          ref ?? '',
-          barcode ?? '',
+          asTextCode(ref),
+          asTextCode(barcode),
           label ?? '',
           fournisseur ?? '',
           stock ?? '',
@@ -385,8 +395,8 @@ Deno.serve(async (req) => {
         ]
       : [
           // B / C : sans colonne Photo
-          ref ?? '',
-          barcode ?? '',
+          asTextCode(ref),
+          asTextCode(barcode),
           label ?? '',
           fournisseur ?? '',
           stock ?? '',
@@ -394,6 +404,7 @@ Deno.serve(async (req) => {
           [note, user ? `par ${user}` : '', `Export scan ${now}`].filter(Boolean).join(' • '),
           'A traiter',
         ];
+
 
     const url = `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${SHEET_RANGE}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
     const res = await fetch(url, {
