@@ -272,53 +272,23 @@ const StockEditor = ({
         </button>
       </div>
 
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onPointerDown={() => setDirection("in")}
-          onClick={() => setDirection("in")}
-          aria-pressed={direction === "in"}
-          className={`flex-1 touch-target rounded-lg border text-sm font-medium inline-flex items-center justify-center gap-1 transition-colors ${
-            direction === "in"
-              ? "bg-primary text-primary-foreground border-primary"
-              : "bg-background text-foreground border-border"
-          }`}
-        >
-          <Plus size={14} /> Entrée
-        </button>
-        <button
-          type="button"
-          onPointerDown={() => setDirection("out")}
-          onClick={() => setDirection("out")}
-          aria-pressed={direction === "out"}
-          className={`flex-1 touch-target rounded-lg border text-sm font-medium inline-flex items-center justify-center gap-1 transition-colors ${
-            direction === "out"
-              ? "bg-destructive text-destructive-foreground border-destructive"
-              : "bg-background text-foreground border-border"
-          }`}
-        >
-          <Minus size={14} /> Sortie
-        </button>
-      </div>
-
-
       <Input
         type="number"
         min="1"
         value={qty}
         onChange={(e) => setQty(e.target.value)}
-        placeholder="Quantité"
+        placeholder="Quantité entrée"
         className="touch-target text-base"
       />
 
       <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2 text-sm">
         <span className="text-muted-foreground">Nouveau stock</span>
         <span className="font-bold">
-          {currentStock} {direction === "in" ? "+" : "−"} {Math.max(0, parseInt(qty) || 0)} ={
-            " "
-          }{currentStock + (direction === "in" ? 1 : -1) * Math.max(0, parseInt(qty) || 0)}
+          {currentStock} + {Math.max(0, parseInt(qty) || 0)} ={" "}
+          {currentStock + Math.max(0, parseInt(qty) || 0)}
         </span>
       </div>
+
 
       {warehouses.length > 0 && (
         <select
