@@ -236,13 +236,14 @@ Deno.serve(async (req) => {
       }
       const o = colOffset(s);
       const fieldIndex: Record<string, number> = {
-        label: 2, fournisseur: 3, stock: 4, emplacement: 5, note: 6,
+        ref: 0, barcode: 1, label: 2, fournisseur: 3, stock: 4, emplacement: 5, note: 6,
       };
       const updates: Array<{ range: string; values: any[][] }> = [];
       for (const [key, i] of Object.entries(fieldIndex)) {
         const v = body?.[key];
         if (v === undefined) continue;
-        updates.push({ range: `${s}!${colLetter(o + i)}${rowNumber}`, values: [[v ?? '']] });
+        const value = key === 'ref' || key === 'barcode' ? asTextCode(v) : (v ?? '');
+        updates.push({ range: `${s}!${colLetter(o + i)}${rowNumber}`, values: [[value]] });
       }
       if (updates.length === 0) {
         return new Response(JSON.stringify({ ok: true, updated: 0 }), {
