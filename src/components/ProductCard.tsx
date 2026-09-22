@@ -199,7 +199,15 @@ const ProductImage = ({ product }: { product: DolibarrProduct }) => {
   );
 };
 
-const StockEditor = ({ product }: { product: DolibarrProduct }) => {
+const StockEditor = ({
+  product,
+  currentStock,
+  onStockChange,
+}: {
+  product: DolibarrProduct;
+  currentStock: number;
+  onStockChange: (stock: number) => void;
+}) => {
   const [open, setOpen] = useState(false);
   const [qty, setQty] = useState("1");
   const [warehouses, setWarehouses] = useState<{ id: number; label: string }[]>([]);
@@ -224,8 +232,7 @@ const StockEditor = ({ product }: { product: DolibarrProduct }) => {
       const finalQty = direction === "in" ? q : -q;
       // Mise à jour Dolibarr désactivée temporairement — seul le Google Sheet est mis à jour.
       // await updateProductStock(product.id, finalQty, selectedWarehouse);
-      const currentStock = Number(product.stock_reel ?? 0);
-      const newStock = (Number.isFinite(currentStock) ? currentStock : 0) + finalQty;
+      const newStock = currentStock + finalQty;
       product.stock_reel = newStock;
       const updatedRows = await updateStockInSheet(product.ref, newStock);
       const autoSendCasB = isCasB(product) && getAutoSendCasB();
@@ -237,6 +244,7 @@ const StockEditor = ({ product }: { product: DolibarrProduct }) => {
       } else {
         toast.warning("Stock calculé, mais ce produit n’existe pas encore dans le Google Sheet");
       }
+      onStockChange(newStock);
       setOpen(false);
       setQty("1");
     } catch (e: any) {
@@ -301,6 +309,15 @@ const StockEditor = ({ product }: { product: DolibarrProduct }) => {
         placeholder="Quantité"
         className="touch-target text-base"
       />
+
+      <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2 text-sm">
+        <span className="text-muted-foreground">Nouveau stock</span>
+        <span className="font-bold">
+          {currentStock} {direction === "in" ? "+" : "−"} {Math.max(0, parseInt(qty) || 0)} ={
+            " "
+          }{currentStock + (direction === "in" ? 1 : -1) * Math.max(0, parseInt(qty) || 0)}
+        </span>
+      </div>
 
       {warehouses.length > 0 && (
         <select
@@ -427,7 +444,13 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   const [storing, setStoring] = useState(false);
   const [emplacementOverride, setEmplacementOverride] = useState<string | null>(null);
   const [sendingCasB, setSendingCasB] = useState(false);
+  const [displayedStock, setDisplayedStock] = useState(() => Number(product.stock_reel ?? 0));
   const productIsCasB = isCasB(product);
+
+  useEffect(() => {
+    const stock = Number(product.stock_reel ?? 0);
+    setDisplayedStock(Number.isFinite(stock) ? stock : 0);
+  }, [product.id]);
 
   const handleSendCasB = async () => {
     setSendingCasB(true);
@@ -619,11 +642,11 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
         </div>
       )}
 
-      <StockBadge stock={product.stock_reel ?? 0} />
+      <StockBadge stock={displayedStock} />
 
       {/* Stock & Location editors */}
       <div className="flex gap-2 w-full max-w-sm flex-wrap">
-        <StockEditor product={product} />
+        <StockEditor product={product} currentStock={displayedStock} onStockChange={setDisplayedStock} />
         <LocationEditor product={product} />
         {activeAisle && productAisle !== activeAisle && (
           <Button
