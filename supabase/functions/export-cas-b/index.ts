@@ -100,7 +100,8 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         'X-Connection-Api-Key': GOOGLE_SHEETS_API_KEY,
       };
-      let updated = 0, appended = 0;
+      let updated = 0, appended = 0, found = 0;
+      const failed: string[] = [];
       for (const t of targets) {
         const readRes = await fetch(
           `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${t.sheet}!A:${t.lastCol}?valueRenderOption=FORMULA`,
@@ -108,6 +109,7 @@ Deno.serve(async (req) => {
         );
         if (!readRes.ok) {
           console.error('updateEmplacement read failed', t.sheet, readRes.status, await readRes.text());
+          failed.push(t.sheet);
           continue;
         }
         const rows: any[][] = (await readRes.json()).values ?? [];
@@ -116,15 +118,17 @@ Deno.serve(async (req) => {
           .map((cols, idx) => ({ cols, rowNumber: idx + 1 }))
           .filter(({ cols, rowNumber }) => rowNumber > 1 && norm(cols?.[t.off]) === norm(refStr));
         if (matches.length === 0) continue;
+        found++;
         if (matches.some((m) => norm(m.cols?.[emplIdx]) === norm(newEmpl))) continue;
         const empty = matches.find((m) => !norm(m.cols?.[emplIdx]));
         const emplCol = String.fromCharCode(65 + emplIdx);
         if (empty) {
-          await fetch(
+          const putRes = await fetch(
             `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${t.sheet}!${emplCol}${empty.rowNumber}?valueInputOption=RAW`,
             { method: 'PUT', headers: { ...hdr, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [[newEmpl]] }) },
           );
-          updated++;
+          if (putRes.ok) updated++;
+          else { console.error('updateEmplacement put failed', t.sheet, putRes.status, await putRes.text()); failed.push(t.sheet); }
           continue;
         }
         // Nouvelle ligne : copie de la première ligne trouvée avec le nouvel emplacement
@@ -140,9 +144,9 @@ Deno.serve(async (req) => {
           { method: 'POST', headers: { ...hdr, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [copy] }) },
         );
         if (appRes.ok) appended++;
-        else console.error('updateEmplacement append failed', t.sheet, appRes.status, await appRes.text());
+        else { console.error('updateEmplacement append failed', t.sheet, appRes.status, await appRes.text()); failed.push(t.sheet); }
       }
-      return new Response(JSON.stringify({ ok: true, updated, appended }), {
+      return new Response(JSON.stringify({ ok: true, updated, appended, found, failed }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
