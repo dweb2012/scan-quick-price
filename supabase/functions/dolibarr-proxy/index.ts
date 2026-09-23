@@ -158,7 +158,9 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           ok: false,
-          error: `Dolibarr a répondu ${doliResponse.status}`,
+          error: responseText.includes("ErrorBarCodeRequired")
+            ? "Dolibarr refuse la modification : ce produit n'a pas de code-barres (obligatoire dans Dolibarr). Ajoutez-lui un code-barres dans Dolibarr puis réessayez."
+            : `Dolibarr a répondu ${doliResponse.status}`,
           diagnostics: {
             stage: "upstream_http",
             url,
