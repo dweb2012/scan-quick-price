@@ -298,6 +298,9 @@ const ReportCasDDialog = ({ open, onClose }: Props) => {
                 maxLength={50}
                 className="text-base"
               />
+              {!(emplacement.trim() || activeAisle) && (
+                <p className="text-xs text-destructive mt-1">L'emplacement est obligatoire pour valider.</p>
+              )}
             </div>
           </div>
 
@@ -353,7 +356,7 @@ const ReportCasDDialog = ({ open, onClose }: Props) => {
           <Button variant="outline" onClick={handleClose} disabled={saving} className="touch-target flex-1">
             Annuler
           </Button>
-          <Button onClick={handleSave} disabled={saving || !selected || !photo} className="touch-target flex-1 gap-2">
+          <Button onClick={handleSave} disabled={!(emplacement.trim() || activeAisle) || saving || !selected || !photo} className="touch-target flex-1 gap-2">
             {saving ? <Loader2 size={16} className="animate-spin" /> : null}
             {error ? "Réessayer" : "Envoyer au Sheet"}
           </Button>
