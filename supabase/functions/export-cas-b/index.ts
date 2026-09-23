@@ -74,8 +74,81 @@ Deno.serve(async (req) => {
     //   A, B, C → Réf en col A, Stock en col E
     //   D       → Réf en col B, Stock en col F
     // ────────────────────────────────────────────────────────────────────
-    if (action === 'updateStock' || action === 'updateEmplacement') {
-      const isEmpl = action === 'updateEmplacement';
+    // ────────────────────────────────────────────────────────────────────
+    // Action « updateEmplacement » : un même produit peut être rangé dans
+    // plusieurs emplacements. Pour chaque onglet A/B/D :
+    //   - une ligne a déjà cet emplacement → rien
+    //   - une ligne a un emplacement vide → on le remplit
+    //   - sinon → on ajoute une NOUVELLE ligne (copie) avec le nouvel emplacement
+    // ────────────────────────────────────────────────────────────────────
+    if (action === 'updateEmplacement') {
+      const refStr = String(ref ?? '').trim();
+      const newEmpl = String(emplacement ?? '').trim();
+      if (!refStr || !newEmpl) {
+        return new Response(JSON.stringify({ ok: false, error: 'ref and emplacement required' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const norm = (s: unknown) => String(s ?? '').trim().toLocaleUpperCase();
+      const nowStr = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' });
+      const targets = [
+        { sheet: 'A', off: 0, lastCol: 'H' },
+        { sheet: 'B', off: 0, lastCol: 'H' },
+        { sheet: 'D', off: 1, lastCol: 'I' },
+      ];
+      const hdr = {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        'X-Connection-Api-Key': GOOGLE_SHEETS_API_KEY,
+      };
+      let updated = 0, appended = 0;
+      for (const t of targets) {
+        const readRes = await fetch(
+          `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${t.sheet}!A:${t.lastCol}?valueRenderOption=FORMULA`,
+          { headers: hdr },
+        );
+        if (!readRes.ok) {
+          console.error('updateEmplacement read failed', t.sheet, readRes.status, await readRes.text());
+          continue;
+        }
+        const rows: any[][] = (await readRes.json()).values ?? [];
+        const emplIdx = 5 + t.off;
+        const matches = rows
+          .map((cols, idx) => ({ cols, rowNumber: idx + 1 }))
+          .filter(({ cols, rowNumber }) => rowNumber > 1 && norm(cols?.[t.off]) === norm(refStr));
+        if (matches.length === 0) continue;
+        if (matches.some((m) => norm(m.cols?.[emplIdx]) === norm(newEmpl))) continue;
+        const empty = matches.find((m) => !norm(m.cols?.[emplIdx]));
+        const emplCol = String.fromCharCode(65 + emplIdx);
+        if (empty) {
+          await fetch(
+            `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${t.sheet}!${emplCol}${empty.rowNumber}?valueInputOption=RAW`,
+            { method: 'PUT', headers: { ...hdr, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [[newEmpl]] }) },
+          );
+          updated++;
+          continue;
+        }
+        // Nouvelle ligne : copie de la première ligne trouvée avec le nouvel emplacement
+        const width = t.off + 8;
+        const copy = Array.from({ length: width }, (_, i) => matches[0].cols?.[i] ?? '');
+        copy[t.off] = asTextCode(copy[t.off]);
+        copy[t.off + 1] = asTextCode(copy[t.off + 1]);
+        copy[emplIdx] = newEmpl;
+        copy[t.off + 6] = [user ? `par ${user}` : '', `Autre emplacement ${nowStr}`].filter(Boolean).join(' • ');
+        copy[t.off + 7] = 'A traiter';
+        const appRes = await fetch(
+          `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${t.sheet}!A:${t.lastCol}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+          { method: 'POST', headers: { ...hdr, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [copy] }) },
+        );
+        if (appRes.ok) appended++;
+        else console.error('updateEmplacement append failed', t.sheet, appRes.status, await appRes.text());
+      }
+      return new Response(JSON.stringify({ ok: true, updated, appended }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (action === 'updateStock') {
+      const isEmpl = false;
       const refStr = String(ref ?? '').trim();
       if (!refStr) {
         return new Response(JSON.stringify({ ok: false, error: 'ref required' }), {
