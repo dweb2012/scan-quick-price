@@ -106,69 +106,166 @@ Deno.serve(async (req) => {
       });
     }
 
-    const url = `${settings.base_url.replace(/\/+$/, "")}${endpoint}`;
-    const fetchOptions: RequestInit = {
-      method,
-      headers: {
-        DOLAPIKEY: settings.api_key,
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
+    const baseUrl = settings.base_url.replace(/\/+$/, "");
+    const apiKey = settings.api_key;
+
+    const callDoli = async (
+      ep: string,
+      m: string,
+      body?: unknown
+    ): Promise<{ status: number; ok: boolean; text: string; contentType: string }> => {
+      const res = await fetch(`${baseUrl}${ep}`, {
+        method: m,
+        headers: {
+          DOLAPIKEY: apiKey,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body:
+          body !== undefined && ["POST", "PUT", "DELETE"].includes(m)
+            ? JSON.stringify(body)
+            : undefined,
+      });
+      return {
+        status: res.status,
+        ok: res.ok,
+        text: await res.text(),
+        contentType: res.headers.get("content-type") || "application/json",
+      };
     };
 
-    if (payload !== undefined && ["POST", "PUT", "DELETE"].includes(method)) {
-      fetchOptions.body = JSON.stringify(payload);
-    }
+    /** Normalise une référence : casse, espaces, tirets et underscores ignorés. */
+    const normalizeRef = (ref: string) =>
+      String(ref || "").toUpperCase().replace(/[\s_\-.]+/g, "");
 
-    let doliResponse: Response;
+    /** Date de création exploitable pour comparer l'ancienneté. */
+    const creationTime = (p: any): number => {
+      const raw = p?.date_creation || p?.import_key || "";
+      const t = Date.parse(String(raw).replace(" ", "T"));
+      return Number.isFinite(t) ? t : Number.MAX_SAFE_INTEGER;
+    };
+
+    /**
+     * Quand Dolibarr refuse une modification à cause d'une référence en double,
+     * on renomme automatiquement le produit le plus ancien en « <REF> ANCIENNE »
+     * pour libérer la référence, puis on relance la modification d'origine.
+     */
+    const resolveDuplicateRef = async (
+      productId: string
+    ): Promise<{ renamed?: string; error?: string }> => {
+      const current = await callDoli(`/api/index.php/products/${productId}`, "GET");
+      if (!current.ok) return { error: "Produit introuvable dans Dolibarr" };
+      const product = JSON.parse(current.text);
+      const ref = String(product?.ref || "");
+      if (!ref) return { error: "Référence introuvable" };
+
+      // '_' est un joker SQL : il retrouve aussi bien "PA-2000C TAP" que "PA-2000C_TAP".
+      const pattern = ref.replace(/['"\\;%]/g, "").replace(/[\s_\-.]/g, "_");
+      const search = await callDoli(
+        `/api/index.php/products?sqlfilters=${encodeURIComponent(
+          `(ref:like:'${pattern}')`
+        )}&limit=20`,
+        "GET"
+      );
+      if (!search.ok) return { error: "Recherche des doublons impossible" };
+
+      let candidates: any[] = [];
+      try {
+        const parsed = JSON.parse(search.text);
+        if (Array.isArray(parsed)) candidates = parsed;
+      } catch (_) {
+        return { error: "Recherche des doublons impossible" };
+      }
+
+      const duplicates = candidates.filter(
+        (p) => normalizeRef(p?.ref) === normalizeRef(ref)
+      );
+      if (duplicates.length < 2) return { error: "Aucun doublon identifié" };
+
+      const oldest = duplicates.reduce((a, b) =>
+        creationTime(a) <= creationTime(b) ? a : b
+      );
+      // On ne renomme jamais le produit que l'utilisateur est en train de traiter.
+      const target =
+        String(oldest?.id) === String(productId)
+          ? duplicates.find((p) => String(p?.id) !== String(productId))
+          : oldest;
+      if (!target) return { error: "Aucun doublon à renommer" };
+
+      const newRef = `${String(target.ref)} ANCIENNE`;
+      const rename = await callDoli(
+        `/api/index.php/products/${target.id}`,
+        "PUT",
+        { ref: newRef }
+      );
+      if (!rename.ok) {
+        console.warn("dolibarr-proxy rename failed", rename.status, rename.text.slice(0, 300));
+        return { error: "Renommage du doublon refusé par Dolibarr" };
+      }
+      console.log("dolibarr-proxy renamed duplicate", { id: target.id, newRef });
+      return { renamed: newRef };
+    };
+
+    let attempt: { status: number; ok: boolean; text: string; contentType: string };
     try {
-      doliResponse = await fetch(url, fetchOptions);
+      attempt = await callDoli(endpoint, method, payload);
     } catch (error: any) {
       console.error("dolibarr-proxy upstream fetch error:", error);
       return new Response(
         JSON.stringify({
           ok: false,
           error: error?.message || "Erreur réseau vers Dolibarr",
-          diagnostics: {
-            stage: "upstream_fetch",
-            url,
-            method,
-          },
+          diagnostics: { stage: "upstream_fetch", url: `${baseUrl}${endpoint}`, method },
         }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const responseText = await doliResponse.text();
-    const contentType = doliResponse.headers.get("content-type") || "application/json";
+    let autoFix: { renamed?: string; error?: string } | undefined;
+    const productIdMatch = endpoint.match(/^\/api\/index\.php\/products\/(\d+)(?:\?|$)/);
+
+    if (
+      !attempt.ok &&
+      method === "PUT" &&
+      productIdMatch &&
+      attempt.text.includes("ErrorProductAlreadyExists")
+    ) {
+      autoFix = await resolveDuplicateRef(productIdMatch[1]);
+      if (autoFix.renamed) {
+        attempt = await callDoli(endpoint, method, payload);
+      }
+    }
+
+    const responseText = attempt.text;
+    const contentType = attempt.contentType;
 
     if (method === "PUT") {
       console.log("dolibarr-proxy PUT", {
-        url,
-        status: doliResponse.status,
+        url: `${baseUrl}${endpoint}`,
+        status: attempt.status,
         payload: JSON.stringify(payload).slice(0, 500),
         response: responseText.slice(0, 500),
       });
     }
 
-    if (!doliResponse.ok) {
+    if (!attempt.ok) {
       return new Response(
         JSON.stringify({
           ok: false,
           error: responseText.includes("ErrorBarCodeRequired")
             ? "Dolibarr refuse la modification : ce produit n'a pas de code-barres (obligatoire dans Dolibarr). Ajoutez-lui un code-barres dans Dolibarr puis réessayez."
             : responseText.includes("ErrorProductAlreadyExists")
-            ? "Dolibarr refuse la modification : un autre produit porte déjà la même référence. Corrigez la référence en double dans Dolibarr puis réessayez."
-            : `Dolibarr a répondu ${doliResponse.status}`,
+            ? `Dolibarr refuse la modification : un autre produit porte déjà la même référence${
+                autoFix?.error ? ` (${autoFix.error})` : ""
+              }. Corrigez la référence en double dans Dolibarr puis réessayez.`
+            : `Dolibarr a répondu ${attempt.status}`,
           diagnostics: {
             stage: "upstream_http",
-            url,
+            url: `${baseUrl}${endpoint}`,
             method,
-            status: doliResponse.status,
+            status: attempt.status,
             body: responseText.slice(0, 500),
+            autoFix,
           },
         }),
         {
