@@ -118,8 +118,9 @@ export async function updateStockInSheet(ref: string, newStock: number): Promise
  */
 export async function updateEmplacementInSheet(ref: string, emplacement: string): Promise<void> {
   if (!ref) return;
+  const user = await getCurrentUserLabel();
   const { error } = await supabase.functions.invoke("export-cas-b", {
-    body: { action: "updateEmplacement", ref, emplacement },
+    body: { action: "updateEmplacement", ref, emplacement, user },
   });
   if (error) throw new Error(error.message);
 }
