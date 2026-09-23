@@ -94,7 +94,14 @@ const Index = () => {
           } else {
             // CAS A : produit BMY nominal — envoi silencieux à l'onglet A
             // (le dédoublonnage côté edge function évite les répétitions)
-            sendCasA(result).catch((e) => console.warn("CAS A export failed", e));
+            if (String(result.array_options?.options_emplacement ?? "").trim()) {
+              sendCasA(result).catch((e) => console.warn("CAS A export failed", e));
+            } else {
+              toast.warning("Emplacement manquant", {
+                description: `${result.ref} — rangez le produit dans un emplacement pour l'envoyer à l'onglet A.`,
+                duration: 10000,
+              });
+            }
           }
           setLoading(false);
           return;
