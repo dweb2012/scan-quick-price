@@ -423,6 +423,10 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
   }, [product.id]);
 
   const handleSendCasB = async () => {
+    if (!String(product.array_options?.options_emplacement ?? "").trim()) {
+      toast.error("Renseignez d'abord l'emplacement du produit avant de l'envoyer.");
+      return;
+    }
     setSendingCasB(true);
     try {
       await sendCasB(product);
