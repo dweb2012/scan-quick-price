@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { DolibarrProduct, getPriceHT, fetchProductImageBlob, getSupplierDiscountForProduct, getProductPromos, PromoPrice, updateProductStock, updateProductExtrafields, getWarehouses } from "@/lib/dolibarr";
-import { updateStockInSheet, updateEmplacementInSheet, isCasB, sendCasB } from "@/lib/exportCasB";
+import { updateStockInSheet, syncEmplacementWithNotice, isCasB, sendCasB } from "@/lib/exportCasB";
 import { getAutoSendCasB } from "@/lib/prefs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -357,9 +357,7 @@ const LocationEditor = ({
         ...(product.array_options || {}),
         options_emplacement: value,
       };
-      await updateEmplacementInSheet(product.ref, value).catch((e) =>
-        console.warn("updateEmplacementInSheet failed", e),
-      );
+      await syncEmplacementWithNotice(product.ref, product.label, value);
       toast.success("Emplacement mis à jour");
       if (isCasB(product) && getAutoSendCasB()) {
         sendCasB(product).catch((e) => console.warn("auto CAS B failed", e));
@@ -474,9 +472,7 @@ const ProductCard = ({ product, onScanNext }: ProductCardProps) => {
         options_emplacement: value,
       };
       setEmplacementOverride(value);
-      await updateEmplacementInSheet(product.ref, value).catch((e) =>
-        console.warn("updateEmplacementInSheet failed", e),
-      );
+      await syncEmplacementWithNotice(product.ref, product.label, value);
       toast.success(`Rangé dans ${activeAisle}`);
       if (productIsCasB && getAutoSendCasB()) {
         sendCasB(product).catch((e) => console.warn("auto CAS B failed", e));

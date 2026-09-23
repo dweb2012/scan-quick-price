@@ -119,10 +119,29 @@ export async function updateStockInSheet(ref: string, newStock: number): Promise
 export async function updateEmplacementInSheet(ref: string, emplacement: string): Promise<void> {
   if (!ref) return;
   const user = await getCurrentUserLabel();
-  const { error } = await supabase.functions.invoke("export-cas-b", {
+  const { data, error } = await supabase.functions.invoke("export-cas-b", {
     body: { action: "updateEmplacement", ref, emplacement, user },
   });
   if (error) throw new Error(error.message);
+  if (data?.ok === false) throw new Error(data.error || "Écriture impossible");
+  const failed: string[] = data?.failed ?? [];
+  if (failed.length) throw new Error(`onglet${failed.length > 1 ? "s" : ""} ${failed.join(", ")}`);
+}
+
+/** Écrit l'emplacement dans le Sheet et prévient l'utilisateur en cas d'échec. */
+export async function syncEmplacementWithNotice(ref: string, label: string, emplacement: string): Promise<void> {
+  try {
+    await updateEmplacementInSheet(ref, emplacement);
+  } catch (e: any) {
+    console.warn("updateEmplacementInSheet failed", e);
+    const { toast } = await import("sonner");
+    toast.error(`Emplacement non écrit dans le Google Sheet`, {
+      description: `${ref} — ${label} : emplacement « ${emplacement} » à remettre (${e?.message ?? "erreur"}).`,
+      duration: Infinity,
+      closeButton: true,
+      action: { label: "Réessayer", onClick: () => { void syncEmplacementWithNotice(ref, label, emplacement); } },
+    });
+  }
 }
 
 /**
