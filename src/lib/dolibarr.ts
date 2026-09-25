@@ -170,27 +170,14 @@ export async function deleteSupplierDiscount(id: string): Promise<void> {
 
 // --- Dolibarr API ---
 
-async function dolibarrFetch(endpoint: string, options?: RequestInit): Promise<any> {
-  const { baseUrl, apiKey } = await getSettings();
-  if (!baseUrl || !apiKey) throw new Error("Configuration Dolibarr manquante");
-
-  const url = `${baseUrl.replace(/\/+$/, "")}${endpoint}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      DOLAPIKEY: apiKey,
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...(options?.headers || {}),
-    },
-  });
-
-  if (!res.ok) {
-    if (res.status === 404) return null;
-    const text = await res.text();
-    throw new Error(`Erreur API (${res.status}): ${text.slice(0, 200)}`);
+async function dolibarrFetch(endpoint: string): Promise<any> {
+  // All reads go through the server-side proxy so the API key never reaches the browser.
+  try {
+    return await dolibarrProxy(endpoint, "GET");
+  } catch (e: any) {
+    if (/404/.test(String(e?.message || ""))) return null;
+    throw e;
   }
-  return res.json();
 }
 
 /**
@@ -251,9 +238,6 @@ export async function fetchProductImageBlob(product: DolibarrProduct): Promise<s
       return product.image;
     }
 
-    const { baseUrl, apiKey } = await getSettings();
-    if (!baseUrl || !apiKey) return undefined;
-
     const docs = await dolibarrFetch(
       `/api/index.php/documents?modulepart=produit&id=${product.id}`
     );
@@ -263,15 +247,9 @@ export async function fetchProductImageBlob(product: DolibarrProduct): Promise<s
     const img = docs.find((d: any) => /\.(jpe?g|png|gif|webp)$/i.test(d.name));
     if (!img) return undefined;
 
-    const downloadUrl = `${baseUrl.replace(/\/+$/, "")}/api/index.php/documents/download?modulepart=produit&original_file=${encodeURIComponent(product.ref + "/" + img.name)}`;
-
-    const res = await fetch(downloadUrl, {
-      headers: { DOLAPIKEY: apiKey, Accept: "application/json" },
-    });
-
-    if (!res.ok) return undefined;
-
-    const json = await res.json();
+    const json = await dolibarrFetch(
+      `/api/index.php/documents/download?modulepart=produit&original_file=${encodeURIComponent(product.ref + "/" + img.name)}`
+    );
 
     if (json?.content) {
       const contentType = json["content-type"] || json.contenttype || "image/jpeg";
@@ -286,7 +264,7 @@ export async function fetchProductImageBlob(product: DolibarrProduct): Promise<s
       }
     }
 
-    return `${baseUrl.replace(/\/+$/, "")}/documents/produit/${product.ref}/${img.name}`;
+    return undefined;
   } catch (e) {
     console.error("Erreur chargement image produit:", e);
     return undefined;
