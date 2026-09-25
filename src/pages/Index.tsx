@@ -62,13 +62,6 @@ const Index = () => {
 
     // Try online first
     if (online) {
-      const { baseUrl, apiKey } = await getSettings();
-      if (!baseUrl || !apiKey) {
-        toast.error("Configurez d'abord l'URL et la clé API dans les paramètres.");
-        setTab("settings");
-        setLoading(false);
-        return;
-      }
 
       try {
         const result = await searchProduct(code);
