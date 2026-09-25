@@ -139,9 +139,17 @@ Deno.serve(async (req) => {
         copy[emplIdx] = newEmpl;
         copy[t.off + 6] = [user ? `par ${user}` : '', `Autre emplacement ${nowStr}`].filter(Boolean).join(' • ');
         copy[t.off + 7] = 'A traiter';
+        const usedR = await fetch(`${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${t.sheet}!A:Z`, { headers: hdr });
+        let nr = 2;
+        if (usedR.ok) {
+          const vals: string[][] = (await usedR.json())?.values ?? [];
+          let last = 0;
+          vals.forEach((r, i) => { if (r.some((c) => String(c ?? '').trim() !== '')) last = i + 1; });
+          nr = Math.max(2, last + 1);
+        }
         const appRes = await fetch(
-          `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${t.sheet}!A:${t.lastCol}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-          { method: 'POST', headers: { ...hdr, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [copy] }) },
+          `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${t.sheet}!A${nr}:${t.lastCol}${nr}?valueInputOption=USER_ENTERED`,
+          { method: 'PUT', headers: { ...hdr, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [copy] }) },
         );
         if (appRes.ok) appended++;
         else { console.error('updateEmplacement append failed', t.sheet, appRes.status, await appRes.text()); failed.push(t.sheet); }
@@ -484,14 +492,26 @@ Deno.serve(async (req) => {
         ];
 
 
-    const url = `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${SHEET_RANGE}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+    // Écriture à une ligne explicite (dernière ligne remplie + 1) au lieu de ":append",
+    // dont la détection de « tableau » de Google décale parfois les colonnes.
+    const [tabName, colSpan] = SHEET_RANGE.split('!');
+    const lastColLetter = (colSpan.split(':')[1] || 'I').replace(/\d+/g, '');
+    const gHeaders = {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      'X-Connection-Api-Key': GOOGLE_SHEETS_API_KEY,
+    };
+    let nextRow = 2;
+    const usedRes = await fetch(`${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${tabName}!A:Z`, { headers: gHeaders });
+    if (usedRes.ok) {
+      const vals: string[][] = (await usedRes.json())?.values ?? [];
+      let last = 0;
+      vals.forEach((r, i) => { if (r.some((c) => String(c ?? '').trim() !== '')) last = i + 1; });
+      nextRow = Math.max(2, last + 1);
+    }
+    const url = `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${tabName}!A${nextRow}:${lastColLetter}${nextRow}?valueInputOption=USER_ENTERED`;
     const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        'X-Connection-Api-Key': GOOGLE_SHEETS_API_KEY,
-        'Content-Type': 'application/json',
-      },
+      method: 'PUT',
+      headers: { ...gHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ values: [row] }),
     });
 
@@ -507,7 +527,7 @@ Deno.serve(async (req) => {
     // Photo présente : agrandit la hauteur de la nouvelle ligne pour rendre la photo lisible
     if (driveImageUrl) try {
       const appendJson = JSON.parse(text);
-      const updatedRange: string = appendJson?.updates?.updatedRange ?? '';
+      const updatedRange: string = appendJson?.updates?.updatedRange ?? appendJson?.updatedRange ?? '';
       // Format attendu : "E!A5:I5" — on récupère 5
       const rowMatch = /![A-Z]+(\d+):/.exec(updatedRange);
       if (rowMatch) {
