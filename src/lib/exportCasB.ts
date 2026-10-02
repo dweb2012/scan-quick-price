@@ -102,10 +102,11 @@ export async function updateSheetRow(
  * onglets A/B/D qui correspondent à la référence produit. Sans effet si aucune
  * ligne ne correspond (produit jamais scanné dans le Sheet).
  */
-export async function updateStockInSheet(ref: string, newStock: number): Promise<number> {
+export async function updateStockInSheet(ref: string, newStock: number, emplacement?: string): Promise<number> {
   if (!ref) return 0;
+  const user = await getCurrentUserLabel();
   const { data, error } = await supabase.functions.invoke("export-cas-b", {
-    body: { action: "updateStock", ref, stock: newStock },
+    body: { action: "updateStock", ref, stock: newStock, emplacement: emplacement ?? "", user },
   });
   if (error) throw new Error(error.message);
   if (data?.ok === false) throw new Error(data.error || "Échec de la mise à jour du Google Sheet");

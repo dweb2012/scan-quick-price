@@ -137,6 +137,8 @@ Deno.serve(async (req) => {
         copy[t.off] = asTextCode(copy[t.off]);
         copy[t.off + 1] = asTextCode(copy[t.off + 1]);
         copy[emplIdx] = newEmpl;
+        // Le stock de l'ancien emplacement ne concerne pas ce nouvel emplacement
+        copy[t.off + 4] = stock !== undefined && stock !== null ? stock : '';
         copy[t.off + 6] = [user ? `par ${user}` : '', `Autre emplacement ${nowStr}`].filter(Boolean).join(' • ');
         copy[t.off + 7] = 'A traiter';
         const usedR = await fetch(`${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${t.sheet}!A:Z`, { headers: hdr });
@@ -159,95 +161,78 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Action « updateStock » : le stock est propre à chaque emplacement.
+    // Pour chaque onglet A/B/D, on ne touche QUE la ligne de cette référence
+    // à cet emplacement. Si la référence n'existe qu'à d'autres emplacements,
+    // on ajoute une nouvelle ligne (nouvel emplacement + nouveau stock).
     if (action === 'updateStock') {
-      const isEmpl = false;
       const refStr = String(ref ?? '').trim();
+      const emplStr = String(emplacement ?? '').trim();
       if (!refStr) {
         return new Response(JSON.stringify({ ok: false, error: 'ref required' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      const stockValue = isEmpl ? (emplacement ?? '') : (stock ?? '');
-      const targets: Array<{ sheet: string; refCol: 0 | 1; stockCol: string; readRange: string }> = isEmpl
-        ? [
-            { sheet: 'A', refCol: 0, stockCol: 'F', readRange: 'A!A:A' },
-            { sheet: 'B', refCol: 0, stockCol: 'F', readRange: 'B!A:A' },
-            { sheet: 'D', refCol: 1, stockCol: 'G', readRange: 'D!B:B' },
-          ]
-        : [
-            { sheet: 'A', refCol: 0, stockCol: 'E', readRange: 'A!A:A' },
-            { sheet: 'B', refCol: 0, stockCol: 'E', readRange: 'B!A:A' },
-            { sheet: 'D', refCol: 1, stockCol: 'F', readRange: 'D!B:B' },
-          ];
-      const updates: Array<{ range: string; values: any[][] }> = [];
-      const readFailures: string[] = [];
+      const norm = (s: unknown) => String(s ?? '').trim().toLocaleUpperCase();
+      const nowStr = new Date().toLocaleString('fr-FR', { timeZone: 'Europe/Paris' });
+      const hdr = { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'X-Connection-Api-Key': GOOGLE_SHEETS_API_KEY };
+      const targets = [
+        { sheet: 'A', off: 0, lastCol: 'H' },
+        { sheet: 'B', off: 0, lastCol: 'H' },
+        { sheet: 'D', off: 1, lastCol: 'I' },
+      ];
+      let updated = 0, appended = 0;
+      const failed: string[] = [];
       for (const t of targets) {
-        try {
-          const readUrl = `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${t.readRange}`;
-          const readRes = await fetch(readUrl, {
-            headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
-              'X-Connection-Api-Key': GOOGLE_SHEETS_API_KEY,
-            },
-          });
-          if (!readRes.ok) {
-            const errorText = await readRes.text();
-            console.error('Sheet lookup failed', t.sheet, readRes.status, errorText);
-            readFailures.push(`${t.sheet}: ${readRes.status}`);
-            continue;
-          }
-          const data = await readRes.json();
-          const rows: string[][] = data.values ?? [];
-          rows.forEach((cols, idx) => {
-            const cell = String(cols?.[0] ?? '').trim();
-            if (cell && cell.toLocaleUpperCase() === refStr.toLocaleUpperCase()) {
-              // idx est 0-based sur la plage ; rowNumber Sheets = idx + 1
-              const rowNumber = idx + 1;
-              updates.push({
-                range: `${t.sheet}!${t.stockCol}${rowNumber}`,
-                values: [[stockValue]],
-              });
-            }
-          });
-        } catch (e) {
-          console.warn('updateStock read failed', t.sheet, e);
-          readFailures.push(t.sheet);
-        }
-      }
-
-      if (readFailures.length > 0) {
-        return new Response(
-          JSON.stringify({ ok: false, error: `Lecture Google Sheet impossible (${readFailures.join(', ')})` }),
-          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        const readRes = await fetch(
+          `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${t.sheet}!A:${t.lastCol}?valueRenderOption=FORMULA`,
+          { headers: hdr },
         );
+        if (!readRes.ok) { console.error('updateStock read failed', t.sheet, readRes.status, await readRes.text()); failed.push(t.sheet); continue; }
+        const rows: any[][] = (await readRes.json()).values ?? [];
+        const stockIdx = 4 + t.off, emplIdx = 5 + t.off;
+        const stockCol = String.fromCharCode(65 + stockIdx), emplCol = String.fromCharCode(65 + emplIdx);
+        const matches = rows
+          .map((cols, idx) => ({ cols, rowNumber: idx + 1 }))
+          .filter(({ cols, rowNumber }) => rowNumber > 1 && norm(cols?.[t.off]) === norm(refStr));
+        if (matches.length === 0) continue;
+        let target = emplStr ? matches.find((m) => norm(m.cols?.[emplIdx]) === norm(emplStr)) : undefined;
+        if (!target) target = matches.find((m) => !norm(m.cols?.[emplIdx]));
+        if (!target && !emplStr && matches.length === 1) target = matches[0];
+        if (target) {
+          const data: any[] = [{ range: `${t.sheet}!${stockCol}${target.rowNumber}`, values: [[stock ?? '']] }];
+          if (emplStr && !norm(target.cols?.[emplIdx])) data.push({ range: `${t.sheet}!${emplCol}${target.rowNumber}`, values: [[emplStr]] });
+          const r = await fetch(`${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values:batchUpdate`, {
+            method: 'POST', headers: { ...hdr, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }),
+          });
+          if (r.ok) updated++; else { console.error('updateStock put failed', t.sheet, r.status, await r.text()); failed.push(t.sheet); }
+          continue;
+        }
+        if (!emplStr) continue; // plusieurs emplacements, aucun précisé : on ne touche à rien
+        const width = t.off + 8;
+        const copy = Array.from({ length: width }, (_, i) => matches[0].cols?.[i] ?? '');
+        copy[t.off] = asTextCode(copy[t.off]);
+        copy[t.off + 1] = asTextCode(copy[t.off + 1]);
+        copy[stockIdx] = stock ?? '';
+        copy[emplIdx] = emplStr;
+        copy[t.off + 6] = [user ? `par ${user}` : '', `Autre emplacement ${nowStr}`].filter(Boolean).join(' • ');
+        copy[t.off + 7] = 'A traiter';
+        let last = 0;
+        rows.forEach((r, i) => { if ((r ?? []).some((c) => String(c ?? '').trim() !== '')) last = i + 1; });
+        const nr = Math.max(2, last + 1);
+        const appRes = await fetch(
+          `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values/${t.sheet}!A${nr}:${t.lastCol}${nr}?valueInputOption=USER_ENTERED`,
+          { method: 'PUT', headers: { ...hdr, 'Content-Type': 'application/json' }, body: JSON.stringify({ values: [copy] }) },
+        );
+        if (appRes.ok) appended++; else { console.error('updateStock append failed', t.sheet, appRes.status, await appRes.text()); failed.push(t.sheet); }
       }
-
-      if (updates.length === 0) {
-        return new Response(JSON.stringify({ ok: true, updated: 0 }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      if (failed.length && updated + appended === 0) {
+        return new Response(JSON.stringify({ ok: false, error: `Écriture Google Sheet impossible (${failed.join(', ')})` }), {
+          status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-
-      const batchUrl = `${GATEWAY_URL}/spreadsheets/${SPREADSHEET_ID}/values:batchUpdate`;
-      const batchRes = await fetch(batchUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          'X-Connection-Api-Key': GOOGLE_SHEETS_API_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data: updates }),
-      });
-      const batchText = await batchRes.text();
-      if (!batchRes.ok) {
-        console.error('updateStock batchUpdate failed', batchRes.status, batchText);
-        return new Response(
-          JSON.stringify({ ok: false, status: batchRes.status, error: batchText.slice(0, 500) }),
-          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
-      }
-      return new Response(JSON.stringify({ ok: true, updated: updates.length }), {
+      return new Response(JSON.stringify({ ok: true, updated: updated + appended, appended, failed }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

@@ -234,7 +234,11 @@ const StockEditor = ({
       // await updateProductStock(product.id, finalQty, selectedWarehouse);
       const newStock = currentStock + finalQty;
       product.stock_reel = newStock;
-      const updatedRows = await updateStockInSheet(product.ref, newStock);
+      const updatedRows = await updateStockInSheet(
+        product.ref,
+        newStock,
+        String(product.array_options?.options_emplacement ?? "").trim(),
+      );
       const autoSendCasB = isCasB(product) && getAutoSendCasB();
       if (updatedRows === 0 && autoSendCasB) {
         await sendCasB(product);
