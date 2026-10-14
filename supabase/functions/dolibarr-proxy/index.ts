@@ -279,13 +279,13 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           ok: false,
-          error: responseText.includes("ErrorBarCodeRequired")
+          error: relayError(responseText) ?? (responseText.includes("ErrorBarCodeRequired")
             ? "Dolibarr refuse la modification : ce produit n'a pas de code-barres (obligatoire dans Dolibarr). Ajoutez-lui un code-barres dans Dolibarr puis réessayez."
             : responseText.includes("ErrorProductAlreadyExists")
             ? `Dolibarr refuse la modification : un autre produit porte déjà la même référence${
                 autoFix?.error ? ` (${autoFix.error})` : ""
               }. Corrigez la référence en double dans Dolibarr puis réessayez.`
-            : `Dolibarr a répondu ${attempt.status}`,
+            : `Dolibarr a répondu ${attempt.status}`),
           diagnostics: {
             stage: "upstream_http",
             url: `${baseUrl}${endpoint}`,
