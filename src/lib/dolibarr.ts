@@ -47,7 +47,8 @@ export function getPriceMinHT(product: DolibarrProduct): number {
 
 export interface DolibarrSettings {
   baseUrl: string;
-  apiKey: string;
+  /** true si une clé API est enregistrée côté serveur (la clé n'est jamais renvoyée au navigateur) */
+  hasApiKey: boolean;
 }
 
 export interface SupplierDiscount {
@@ -99,40 +100,31 @@ let cachedSettings: DolibarrSettings | null = null;
 
 export async function getSettings(): Promise<DolibarrSettings> {
   if (cachedSettings) return cachedSettings;
-
-  const { data, error } = await supabase
-    .from("connection_settings")
-    .select("base_url, api_key")
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !data) {
-    return { baseUrl: "", apiKey: "" };
-  }
-
-  cachedSettings = { baseUrl: data.base_url, apiKey: data.api_key };
+  const { data, error } = await supabase.rpc("get_connection_settings_public");
+  const row = Array.isArray(data) ? data[0] : data;
+  if (error || !row) return { baseUrl: "", hasApiKey: false };
+  cachedSettings = { baseUrl: row.base_url ?? "", hasApiKey: !!row.has_api_key };
   return cachedSettings;
 }
 
-export async function saveSettings(settings: DolibarrSettings): Promise<void> {
+/** Enregistre l'URL ; la clé n'est modifiée que si une nouvelle valeur est saisie. */
+export async function saveSettings(settings: { baseUrl: string; apiKey?: string }): Promise<void> {
   const { data: existing } = await supabase
     .from("connection_settings")
     .select("id")
     .limit(1)
     .maybeSingle();
 
+  const patch: { base_url: string; api_key?: string } = { base_url: settings.baseUrl };
+  if (settings.apiKey) patch.api_key = settings.apiKey;
+
   if (existing) {
-    await supabase
-      .from("connection_settings")
-      .update({ base_url: settings.baseUrl, api_key: settings.apiKey })
-      .eq("id", existing.id);
+    await supabase.from("connection_settings").update(patch).eq("id", existing.id);
   } else {
-    await supabase
-      .from("connection_settings")
-      .insert({ base_url: settings.baseUrl, api_key: settings.apiKey });
+    await supabase.from("connection_settings").insert({ ...patch, api_key: patch.api_key ?? "" });
   }
 
-  cachedSettings = { ...settings };
+  cachedSettings = { baseUrl: settings.baseUrl, hasApiKey: !!settings.apiKey || !!cachedSettings?.hasApiKey };
 }
 
 // --- Supplier discounts ---

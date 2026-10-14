@@ -17,6 +17,7 @@ import { getAutoSendCasB, setAutoSendCasB } from "@/lib/prefs";
 const SettingsPanel = () => {
   const [baseUrl, setBaseUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [hasApiKey, setHasApiKey] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const [testing, setTesting] = useState(false);
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -51,7 +52,7 @@ const SettingsPanel = () => {
 
   useEffect(() => {
     Promise.all([
-      getSettings().then((s) => { setBaseUrl(s.baseUrl); setApiKey(s.apiKey); }),
+      getSettings().then((s) => { setBaseUrl(s.baseUrl); setHasApiKey(s.hasApiKey); }),
       loadDiscounts(),
       loadProfile(),
     ]).finally(() => setLoadingSettings(false));
@@ -123,12 +124,13 @@ const SettingsPanel = () => {
   };
 
   const handleSave = async () => {
-    await saveSettings({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() });
+    await saveSettings({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() || undefined });
+    if (apiKey.trim()) { setHasApiKey(true); setApiKey(""); }
     toast.success("Paramètres enregistrés");
   };
 
   const handleTest = async () => {
-    await saveSettings({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() });
+    await saveSettings({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() || undefined });
     setTesting(true);
     try {
       await testConnection();
@@ -271,7 +273,7 @@ const SettingsPanel = () => {
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             type={showKey ? "text" : "password"}
-            placeholder="Votre DOLAPIKEY"
+            placeholder={hasApiKey ? "Clé configurée — laisser vide pour la conserver" : "Votre DOLAPIKEY"}
             className="touch-target text-base flex-1"
           />
           <Button
@@ -289,7 +291,7 @@ const SettingsPanel = () => {
         <Button
           variant="outline"
           onClick={handleTest}
-          disabled={testing || !baseUrl || !apiKey}
+          disabled={testing || !baseUrl || (!apiKey && !hasApiKey)}
           className="touch-target text-base gap-2"
           size="lg"
         >
@@ -298,7 +300,7 @@ const SettingsPanel = () => {
         </Button>
         <Button
           onClick={handleSave}
-          disabled={!baseUrl || !apiKey}
+          disabled={!baseUrl || (!apiKey && !hasApiKey)}
           className="touch-target text-base font-semibold"
           size="lg"
         >
