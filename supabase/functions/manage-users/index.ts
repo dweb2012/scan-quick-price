@@ -69,6 +69,7 @@ Deno.serve(async (req) => {
         email: u.email,
         created_at: u.created_at,
         display_name: profiles?.find((p) => p.user_id === u.id)?.display_name || null,
+        dolibarr_user_id: profiles?.find((p) => p.user_id === u.id)?.dolibarr_user_id ?? null,
         roles: roles?.filter((r) => r.user_id === u.id).map((r) => r.role) || [],
       }));
 
@@ -106,6 +107,34 @@ Deno.serve(async (req) => {
       }
 
       return new Response(JSON.stringify({ id: newUser.user.id, email }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "set_dolibarr_id") {
+      const { user_id } = body;
+      const raw = body.dolibarr_user_id;
+      const value = raw === null || raw === "" || raw === undefined ? null : Number(raw);
+      if (!user_id || (value !== null && (!Number.isInteger(value) || value <= 0))) {
+        return new Response(JSON.stringify({ error: "ID Dolibarr invalide (nombre entier positif)" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { error: upErr } = await adminClient
+        .from("profiles")
+        .update({ dolibarr_user_id: value })
+        .eq("user_id", user_id);
+      if (upErr) {
+        const msg = upErr.code === "23505"
+          ? "Cet ID Dolibarr est déjà relié à un autre utilisateur"
+          : upErr.message;
+        return new Response(JSON.stringify({ error: msg }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
