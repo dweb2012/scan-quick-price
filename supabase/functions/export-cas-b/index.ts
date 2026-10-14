@@ -51,6 +51,23 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ ok: false, error: 'Non autorisé' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    {
+      const authClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: authData } = await authClient.auth.getUser();
+      if (!authData?.user) {
+        return new Response(JSON.stringify({ ok: false, error: 'Non autorisé' }), {
+          status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const GOOGLE_SHEETS_API_KEY = Deno.env.get('GOOGLE_SHEETS_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');

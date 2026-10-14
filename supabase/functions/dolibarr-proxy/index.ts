@@ -93,38 +93,54 @@ Deno.serve(async (req) => {
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
-    const { data: settings, error: settingsError } = await adminClient
-      .from("connection_settings")
-      .select("base_url, api_key")
-      .limit(1)
-      .maybeSingle();
 
-    if (settingsError || !settings?.base_url || !settings?.api_key) {
-      return new Response(JSON.stringify({ ok: false, error: "Configuration Dolibarr manquante" }), {
+    // L'ID Dolibarr est toujours lu côté serveur dans la fiche de l'utilisateur connecté.
+    const { data: profile } = await adminClient
+      .from("profiles")
+      .select("dolibarr_user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const dolibarrUserId = profile?.dolibarr_user_id;
+    if (!dolibarrUserId) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Votre compte n'est pas relié à un utilisateur Dolibarr" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const CHRHUB_SECRET = Deno.env.get("CHRHUB_SECRET");
+    const CHRHUB_APP = Deno.env.get("CHRHUB_APP");
+    if (!CHRHUB_SECRET || !CHRHUB_APP) {
+      return new Response(JSON.stringify({ ok: false, error: "Relais Dolibarr non configuré sur le serveur" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const baseUrl = settings.base_url.replace(/\/+$/, "");
-    const apiKey = settings.api_key;
+    const RELAY_URL = "https://dolibarr.chrelite.fr/custom/chrhub/api/call.php";
+    const baseUrl = "relais";
 
     const callDoli = async (
       ep: string,
       m: string,
       body?: unknown
     ): Promise<{ status: number; ok: boolean; text: string; contentType: string }> => {
-      const res = await fetch(`${baseUrl}${ep}`, {
-        method: m,
+      const rel = ep.replace(/^\/api\/index\.php\//, "");
+      const qi = rel.indexOf("?");
+      const path = qi >= 0 ? rel.slice(0, qi) : rel;
+      const query: Record<string, string> = {};
+      if (qi >= 0) new URLSearchParams(rel.slice(qi + 1)).forEach((v, k) => { query[k] = v; });
+      const relayBody: Record<string, unknown> = { dolibarr_user_id: dolibarrUserId, method: m, path };
+      if (Object.keys(query).length) relayBody.query = query;
+      if (body !== undefined && ["POST", "PUT", "DELETE"].includes(m)) relayBody.body = body;
+      const res = await fetch(RELAY_URL, {
+        method: "POST",
         headers: {
-          DOLAPIKEY: apiKey,
-          Accept: "application/json",
+          "X-ChrHub-App": CHRHUB_APP,
+          "X-ChrHub-Secret": CHRHUB_SECRET,
           "Content-Type": "application/json",
+          Accept: "application/json",
         },
-        body:
-          body !== undefined && ["POST", "PUT", "DELETE"].includes(m)
-            ? JSON.stringify(body)
-            : undefined,
+        body: JSON.stringify(relayBody),
       });
       return {
         status: res.status,
@@ -132,6 +148,17 @@ Deno.serve(async (req) => {
         text: await res.text(),
         contentType: res.headers.get("content-type") || "application/json",
       };
+    };
+
+    const relayError = (text: string): string | null => {
+      try {
+        const code = JSON.parse(text)?.chrhub_error;
+        if (code === "user_not_found") return "Votre compte Dolibarr est introuvable ou désactivé. Contactez un administrateur.";
+        if (code === "no_apikey") return "Votre fiche Dolibarr n'a pas de clé API. Demandez à un administrateur Dolibarr d'en générer une.";
+        if (code === "forbidden") return "Le relais Dolibarr refuse la connexion (secret invalide). Contactez un administrateur.";
+        if (code) return `Erreur du relais Dolibarr (${code})`;
+      } catch (_) { /* not JSON */ }
+      return null;
     };
 
     /** Normalise une référence : casse, espaces, tirets et underscores ignorés. */
@@ -252,13 +279,13 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           ok: false,
-          error: responseText.includes("ErrorBarCodeRequired")
+          error: relayError(responseText) ?? (responseText.includes("ErrorBarCodeRequired")
             ? "Dolibarr refuse la modification : ce produit n'a pas de code-barres (obligatoire dans Dolibarr). Ajoutez-lui un code-barres dans Dolibarr puis réessayez."
             : responseText.includes("ErrorProductAlreadyExists")
             ? `Dolibarr refuse la modification : un autre produit porte déjà la même référence${
                 autoFix?.error ? ` (${autoFix.error})` : ""
               }. Corrigez la référence en double dans Dolibarr puis réessayez.`
-            : `Dolibarr a répondu ${attempt.status}`,
+            : `Dolibarr a répondu ${attempt.status}`),
           diagnostics: {
             stage: "upstream_http",
             url: `${baseUrl}${endpoint}`,

@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import InstallPrompt from "@/components/InstallPrompt";
 import Index from "./pages/Index.tsx";
 import Auth from "./pages/Auth.tsx";
+import Sso from "./pages/Sso.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { Loader2 } from "lucide-react";
 
@@ -14,6 +15,11 @@ const queryClient = new QueryClient();
 
 const AuthGate = () => {
   const { session, loading } = useAuth();
+
+  // Route publique : connexion depuis le menu Applications de Dolibarr
+  if (window.location.pathname === "/sso") {
+    return <Sso />;
+  }
 
   if (loading) {
     return (

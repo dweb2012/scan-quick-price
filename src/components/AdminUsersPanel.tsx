@@ -12,6 +12,7 @@ interface AppUser {
   created_at: string;
   display_name: string | null;
   roles: string[];
+  dolibarr_user_id: number | null;
 }
 
 const AdminUsersPanel = () => {
@@ -97,6 +98,28 @@ const AdminUsersPanel = () => {
       toast.error(err.message);
     } finally {
       setCreating(false);
+    }
+  };
+
+  const [doliEdits, setDoliEdits] = useState<Record<string, string>>({});
+
+  const handleSaveDolibarrId = async (user: AppUser) => {
+    const raw = (doliEdits[user.id] ?? "").trim();
+    if (raw !== "" && !/^\d+$/.test(raw)) {
+      toast.error("L'ID Dolibarr doit être un nombre");
+      return;
+    }
+    try {
+      await callManageUsers({
+        action: "set_dolibarr_id",
+        user_id: user.id,
+        dolibarr_user_id: raw === "" ? null : Number(raw),
+      });
+      toast.success("ID Dolibarr enregistré");
+      setDoliEdits((d) => { const n = { ...d }; delete n[user.id]; return n; });
+      await loadUsers();
+    } catch (err: any) {
+      toast.error(err.message);
     }
   };
 
@@ -198,6 +221,21 @@ const AdminUsersPanel = () => {
               {u.display_name && (
                 <span className="text-[11px] text-muted-foreground block truncate">{u.email}</span>
               )}
+            </div>
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              <span className="text-[10px] text-muted-foreground uppercase font-bold">ID Dolibarr</span>
+              <div className="flex gap-1">
+                <Input
+                  inputMode="numeric"
+                  value={doliEdits[u.id] ?? (u.dolibarr_user_id?.toString() ?? "")}
+                  onChange={(e) => setDoliEdits((d) => ({ ...d, [u.id]: e.target.value }))}
+                  placeholder="—"
+                  className="h-8 w-20 text-sm"
+                />
+                {doliEdits[u.id] !== undefined && (
+                  <Button size="sm" className="h-8 px-2" onClick={() => handleSaveDolibarrId(u)}>OK</Button>
+                )}
+              </div>
             </div>
             <Button
               variant="ghost"

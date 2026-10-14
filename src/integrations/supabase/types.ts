@@ -42,6 +42,7 @@ export type Database = {
         Row: {
           created_at: string
           display_name: string | null
+          dolibarr_user_id: number | null
           email: string | null
           id: string
           updated_at: string
@@ -50,6 +51,7 @@ export type Database = {
         Insert: {
           created_at?: string
           display_name?: string | null
+          dolibarr_user_id?: number | null
           email?: string | null
           id?: string
           updated_at?: string
@@ -58,10 +60,26 @@ export type Database = {
         Update: {
           created_at?: string
           display_name?: string | null
+          dolibarr_user_id?: number | null
           email?: string | null
           id?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      sso_used_tokens: {
+        Row: {
+          jti: string
+          used_at: string
+        }
+        Insert: {
+          jti: string
+          used_at?: string
+        }
+        Update: {
+          jti?: string
+          used_at?: string
         }
         Relationships: []
       }
@@ -154,6 +172,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_connection_settings_public: {
+        Args: never
+        Returns: {
+          base_url: string
+          has_api_key: boolean
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
