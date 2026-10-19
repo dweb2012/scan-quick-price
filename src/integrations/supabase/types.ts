@@ -68,6 +68,21 @@ export type Database = {
         }
         Relationships: []
       }
+      reception_relay_jti: {
+        Row: {
+          jti: string
+          used_at: string
+        }
+        Insert: {
+          jti: string
+          used_at?: string
+        }
+        Update: {
+          jti?: string
+          used_at?: string
+        }
+        Relationships: []
+      }
       sso_used_tokens: {
         Row: {
           jti: string
